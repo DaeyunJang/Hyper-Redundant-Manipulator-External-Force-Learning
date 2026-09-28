@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "status": "interface_proposal_not_implemented",
+  "record_root_relative_to_project": "../Hyper-Redundant-Manipulator/record",
+  "read_only_sources": true,
+  "sessions": [],
+  "session_entry_template": {
+    "trial_group_id": null,
+    "session_id": null,
+    "role": "development",
+    "allowed_roles": ["development", "test", "calibration", "calibration_validation"],
+    "summary_path": null,
+    "schema_path": null,
+    "export_manifest_path": null,
+    "session_metadata_path": null,
+    "recording_config_path": null,
+    "source_sha256": null,
+    "force_units": {"source_unit": null, "scale_to_N": null, "verified": false},
+    "force_physical_convention": {"quantity": "recorded_aligned_force", "verified": false, "training_sign_multiplier": 1, "hrm_control_multiplier": -1, "convention_source": "user_instruction_2026-09-26"},
+    "wire_length_unit": null,
+    "wire_velocity_unit": null,
+    "tension_unit": null,
+    "alignment_from": "session.json.snapshot.force_alignment",
+    "expected_sensor_header_frame": null,
+    "experiment_label_from": "validate_csv_against_frozen_session_snapshot",
+    "sensor_configuration_id": null,
+    "confirmed_unloaded": false,
+    "unloaded_intervals_source_time_ns": [],
+    "notes": "Absolute ns endpoints, when specified, are integer strings. Empty interval list does not automatically mean an entire session is unloaded."
+  },
+  "selection_rules": [
+    "Explicitly list one chosen summary for each physical trial; do not import csv and csv_recovered from the same session twice.",
+    "Templates are not data entries; fill verified values into sessions before running a future implementation.",
+    "Recorded ID0 alone does not establish an independently confirmed unloaded interval.",
+    "Calibration and calibration_validation trials are distinct from final evaluation test trials.",
+    "Changing target raw/kalman must use source-compatible validity and calibration.",
+    "Do not infer force units from ROS message type or directory name."
+  ]
+}

@@ -1,0 +1,6 @@
+# Installed training environment; GPU wheel source: https://download.pytorch.org/whl/cu126
+torch==2.7.1
+numpy==1.26.4
+pandas==2.3.1
+matplotlib==3.5.1
+# Tests use the standard-library unittest runner.

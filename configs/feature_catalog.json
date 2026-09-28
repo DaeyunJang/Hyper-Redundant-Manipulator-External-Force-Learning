@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "status": "input_groups_implemented_target_catalog_reference",
+  "implementation_note": "groups는 현재 로더에서 사용하는 입력 registry다. force_targets는 참고 목록이며 현재 학습 CLI는 raw/kalman의 hrm_base aligned XYZ만 지원한다.",
+  "index_rule": "inclusive integer range; expand in numeric order using Python str.format(i=i)",
+  "groups": {
+    "wire_length": {
+      "column_template": "wire.Cable #{i} length",
+      "first_index": 1,
+      "last_index": 4,
+      "required_true_columns": ["wire.matched"],
+      "time_prefix": "wire",
+      "unit": "session_metadata; existing records describe mm"
+    },
+    "loadcell_tension": {
+      "column_template": "loadcell.Loadcell #{i} tension",
+      "first_index": 1,
+      "last_index": 4,
+      "required_true_columns": ["loadcell.matched"],
+      "time_prefix": "loadcell",
+      "unit": "session_metadata; existing records describe g, not automatically N"
+    },
+    "relative_angle": {
+      "column_template": "relative_angle_{i}",
+      "first_index": 1,
+      "last_index": 18,
+      "required_true_columns": [],
+      "time_prefix": null,
+      "unit": "rad",
+      "axis_order": "odd=tilt, even=pan (1-based)"
+    },
+    "motor_position": {
+      "column_template": "motor.Motor #{i} position [count]",
+      "first_index": 1,
+      "last_index": 4,
+      "required_true_columns": ["motor.matched"],
+      "time_prefix": "motor",
+      "unit": "encoder_count"
+    },
+    "wire_velocity": {
+      "column_template": "wire_velocity.Cable #{i} velocity",
+      "first_index": 1,
+      "last_index": 4,
+      "required_true_columns": ["wire_velocity.matched"],
+      "time_prefix": "wire_velocity",
+      "unit": "verify_upstream_and_session_metadata"
+    },
+    "relative_angular_velocity": {
+      "column_template": "relative_angular_velocity_{i}_rad_s",
+      "first_index": 1,
+      "last_index": 18,
+      "required_true_columns": [],
+      "time_prefix": null,
+      "unit": "rad/s",
+      "axis_order": "odd=tilt, even=pan (1-based)"
+    },
+    "pan_relative": {
+      "column_template": "pan_relative_{i:02d}_rad",
+      "first_index": 1,
+      "last_index": 18,
+      "required_true_columns": [],
+      "time_prefix": null,
+      "unit": "rad"
+    },
+    "tilt_relative": {
+      "column_template": "tilt_relative_{i:02d}_rad",
+      "first_index": 1,
+      "last_index": 18,
+      "required_true_columns": [],
+      "time_prefix": null,
+      "unit": "rad"
+    },
+    "pan_absolute": {
+      "column_template": "pan_absolute_{i:02d}_rad",
+      "first_index": 1,
+      "last_index": 18,
+      "required_true_columns": [],
+      "time_prefix": null,
+      "unit": "rad"
+    },
+    "tilt_absolute": {
+      "column_template": "tilt_absolute_{i:02d}_rad",
+      "first_index": 1,
+      "last_index": 18,
+      "required_true_columns": [],
+      "time_prefix": null,
+      "unit": "rad"
+    }
+  },
+  "force_targets": {
+    "kalman": {
+      "hrm_base": {
+        "columns": ["fts_kalman.aligned_fx", "fts_kalman.aligned_fy", "fts_kalman.aligned_fz"],
+        "required_true_columns": ["fts_kalman.matched", "fts_kalman.aligned_force_valid"],
+        "frame_column": "fts_kalman.aligned_frame_id",
+        "expected_frame": "hrm_base",
+        "time_prefix": "fts_kalman"
+      },
+      "sensor": {
+        "columns": ["fts_kalman.fx", "fts_kalman.fy", "fts_kalman.fz"],
+        "required_true_columns": ["fts_kalman.matched"],
+        "frame_column": "fts_kalman.frame_id",
+        "expected_frame": null,
+        "time_prefix": "fts_kalman"
+      }
+    },
+    "raw": {
+      "hrm_base": {
+        "columns": ["fts.aligned_fx", "fts.aligned_fy", "fts.aligned_fz"],
+        "required_true_columns": ["fts.matched", "fts.aligned_force_valid"],
+        "frame_column": "fts.aligned_frame_id",
+        "expected_frame": "hrm_base",
+        "time_prefix": "fts"
+      },
+      "sensor": {
+        "columns": ["fts.fx", "fts.fy", "fts.fz"],
+        "required_true_columns": ["fts.matched"],
+        "frame_column": "fts.frame_id",
+        "expected_frame": null,
+        "time_prefix": "fts"
+      }
+    }
+  },
+  "metadata_not_default_features": [
+    "source_time_ns", "bag_receive_time_ns", "elapsed_s", "contact_segment_id",
+    "fts.*", "fts_kalman.*", "tag_id0_to_id1.*", "estimated_tip.*", "fk_tip.*"
+  ]
+}
