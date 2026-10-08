@@ -1,0 +1,25 @@
+# 한번에 1.학습 - 2.예측 - 3. 결과정리
+
+HRM_RUN_ID="$(TZ=Asia/Seoul date +%Y%m%d_%H%M%S)"
+
+bash scripts/hrm_python.sh train.py \
+  --config configs/train.yaml \
+  --output "results/train/$HRM_RUN_ID" && \
+bash scripts/predict_and_organize.sh \
+  "results/train/$HRM_RUN_ID" \
+  "results/predict/$HRM_RUN_ID" \
+  --id-tolerance 2
+
+
+
+# 1. 학습
+bash scripts/hrm_python.sh train.py --config configs/train.yaml
+
+# 2. test 예측 + ±2 ID 평가 + Excel 정리
+bash scripts/predict_and_organize.sh results/train/학습날짜_시간 --id-tolerance 2
+
+# 기본값은2이며, 저장된 결과를 ±3으로 다시 보려면:
+bash scripts/hrm_python.sh organize_results.py \
+  results/predict/예측날짜_시간/predictions.xlsx --id-tolerance 3
+
+

@@ -1,6 +1,15 @@
 datasets
 
 results/
+results_legacy_*/
 __pycache__/
 .pytest_cache/
 *.pyc
+env_hrm_force_estimation/
+.runtime/
+
+tests
+.agents
+.codex
+.vscode
+results*

@@ -1,122 +1,88 @@
-# HRM 외력 추정 프로젝트 작업 규칙
+# HRM 프로젝트 작업 규칙
 
-최신 합의 반영: 2026-09-28 (Asia/Seoul). 다른 PC에서도 이 파일을 저장소 루트에 유지한다.
+최신 합의: 2026-10-06. 한국어로 답한다. 먼저
+[docs/CHATGPT_README.md](docs/CHATGPT_README.md)의 현재 상태와 최신 기록을 읽는다.
+요구사항·수행·검증·미완료·다음 작업을 해당 문서에 날짜와 함께 누적한다.
+문서의 과거 계획/실행 예시는 새로운 실행 승인이 아니다. 실행하지 않은 작업을 완료로 쓰지 않는다.
+2026-10-06 최신 선호: 이후에는 변경을 최소화한다. 학습 목표·출력 구조·라벨 기준이 모호하면
+먼저 차이를 설명하고 확인하며 제안을 합의된 변경으로 간주하지 않는다.
+직접 무부하/tip/body 3분류 및 별도 상태 출력 추가는 사용자 요청으로 제외했다.
+기존 class0(ID0–18)/masked(ID1–18)와 독립 힘 모델을 유지한다.
 
-## 대화와 작업 기록
-
-- 한국어로 답한다. 새 작업은 [CODEX_HANDOFF.md](CODEX_HANDOFF.md)의 **현재 요약**과
-  [docs/WORK_LOG.md](docs/WORK_LOG.md)의 최신 요청부터 확인한다. 긴 과거 대화가 다른
-  PC/새 세션에 자동 전달된다고 가정하지 않는다.
-- 매 사용자 요청마다 WORK_LOG에 날짜·요청·수행·검증·미완료/다음을 누적 기록한다.
-  실패나 미실행을 완료로 기록하지 않는다. 중요한 결정은 이 파일과 HANDOFF도 갱신한다.
-- 과거 일지는 보존한다. 현재 합의/구현과 이전 제안이 다르면 최신 사용자 지시와 현재
-  요약을 우선하고, 미구현 계획을 완료된 기능처럼 설명하지 않는다.
-- 데이터 작업은 [DATASET_SPEC](docs/DATASET_SPEC.md), 학습 설계는
-  [TRAINING_PLAN](docs/TRAINING_PLAN.md), 다른 PC 인계는
-  [MULTI_PC_HANDOFF](docs/MULTI_PC_HANDOFF.md)를 필요한 범위에서 읽는다.
-
-## 연구 방향과 현재 범위
-
-- 우선순위: 끝단 힘 정확도 → 접촉 위치/세 구간 인식 → 몸체 접촉 힘 추정.
-  끝단 목표는 축별 RMSE 약50–90mN이며 달성을 보장하지 않는다.
-- 위치와 힘을 별도 모델로 운용하는 방향에 합의했다. **분리 모델은 아직 미구현**이다.
-  현재 tip은 XYZ+보조 하중 확률, 위치는 고정18. body는 XYZ+하중+조건부 ID1–18 공동 모델.
-- 향후 위치는 정확 ID를 보존하며 우선 아래/중간/끝단 부근 세 구간으로 표시한다.
-  후보1–9/10–15/16–18의 경계는 미확정. 세 구간 운영 후처리/분리 모델 학습을
-  이미 적용했다고 말하지 않는다. 기존 세 구간 수치는 저장 예측을 재집계한 진단이다.
-- 사용자는 ID1–18 전부 수집할 계획이다. 초기 ID는 각도와 장력 모두 거의 변하지 않는다는
-  관찰이 있다. 제외 ID는 개발 자료의 반응/구분 가능성과 포함·제외 모델 비교 후 결정한다.
-  실제 유부하를 무부하로 바꾸지 않고 원본/한계 평가를 보존한다. 입력18각도는 유지한다.
-- 같은 공통 ID validation에서 포함/제외 모델을 비교한다. 최종 test로 제외 경계를 고르거나
-  지원 범위 축소를 전체 ID 성능 향상으로 표현하지 않는다. 관측되지 않는 접촉을 자동으로
-  unknown/무부하와 구별할 수 있다고 약속하지 않는다.
-- 수집 제안은 [STATIC_POSE_COLLECTION](docs/STATIC_POSE_COLLECTION.md), 후속 학습 설계는
-  [NEXT_DATA_TRAINING_POLICY](docs/NEXT_DATA_TRAINING_POLICY.md). 고정 자세+동적 녹화 병행,
-  모든 ID의 공통 자세/힘 조건을 검토했으나 자세값/수집량은 성능 보장 조건이 아니다.
-- 현재는 새 데이터 제공 후 후속 분석·학습을 진행하기로 한 상태다. 환경 확인/문서 질문을
-  실제 새 학습 요청으로 해석하지 않는다. 이미 승인된 작업은 중복 허락을 요구하지 않는다.
-
-## 입력·정답·출력 계약
-
-- 기본 입력26: wire_length4 + loadcell_tension4 + relative_angle18. 실제 축은 홀수 tilt,
-  짝수 pan, rad의 부호와0을 보존한다. timestamp/실험ID/F/T 정답은 기본 X에 넣지 않는다.
-- config의 feature_groups로 **그룹 단위** 선택, 11모델 입력 차원 자동 변경. 개별 채널
-  목록 옵션은 없다. 은닉층 폭/층 수는 모델별 고정이다. 기본18각도 유지 방침을 임의 변경하지 않는다.
-- 기본 정답: fts_kalman.aligned_fx/fy/fz, hrm_base. 기록 mN→학습 N, 저장 부호 유지.
-  raw 선택도 가능하지만 센서 frame으로 자동 대체하지 않으며 Kalman 임계값을 raw에
-  그대로 유효한 교정값이라고 주장하지 않는다.
-- 실제 HRM 제어 코드에서는 **역정규화된 추론 XYZ에 -1을 한 번** 곱해야 한다.
-  학습 정답을 미리 뒤집지 않는다. ROS 제어 연결은 아직 미구현이다.
-- 원본 contact_segment_id는 실험 라벨이다. 무부하에서도 원본 ID를 덮어쓰지 않는다.
-  현재 body 위치 loss는 유부하에만 적용하고, 힘 회귀는 무부하 실측값도 그대로 사용한다.
-- 최종 사용자 출력은 ID/XYZ이며 무부하 표시 ID는0. 현재 표시 하중은 예측 XYZ가 모두
-  ±45.4/43.6/72.9mN 이내인지로 판정한다. 사용자 제공1σ 범위이지 신뢰구간/물리적 무접촉 보증이 아니다.
-- raw 연속 XYZ 예측과 실측 정답은 보존한다. 현재 별도 display 힘 열만 무부하에서0이며
-  이것을 raw 회귀값과 혼동하지 않는다. 향후 구조는 위치+하중 모델/별도 힘 모델을 비교한다.
-- 위치 불확실과 무부하는 다르다. ID18 전용 힘 모델을 body/ID16·17까지 검증 없이 적용하지 않는다.
-
-## 데이터 폴더·분할·누락
-
-- 원본 CSV/bag/이미지/메타데이터는 읽기 전용. 파일을 자동 수정/이동하지 않는다.
-  단위·영점·실험 라벨·무부하 구간을 추측하지 않는다. 선택한 열만 유효성 검사한다.
-- 신규 설정은 configs/tip_force_folders.json / body_force_folders.json.
-  datasets/trainsets/<녹화>/csv/summary.csv를 탐색하되 **메타데이터 포함 녹화 폴더 전체**가 필요하다.
-  testsets는 예측 전용이며 학습/scaler/모델 선택에 사용하지 않는다.
-- trainsets에서 ID별 녹화 단위 validation. 기본 비율0.2지만 ID당2녹화면1개씩 분할된다.
-  ID당1녹화는 오류이며 자동 시간 분할로 바꾸지 않는다. 같은 물리 세션/CSV 복사본은 중복 거절.
-- 실행 시작에 목록·역할·hash를 고정하고 모든 모델이 같은 분할을 사용한다. scaler는 train만 사용한다.
-  체크포인트의 고정 목록에는 나중에 추가된 폴더가 자동 편입되지 않는다.
-- 과거 test의 train 편입/과거 train·val의 test 편입을 금지한다. 2026-09-28 확인 시
-  trainsets/sine-35deg-both_seg-id-18_right가 과거 test여서 준비 단계가 차단된다.
-  다른 PC에서는 현재 배치를 재확인하고 이 기록의 보호 역할을 유지한다.
-- right_2는 사용자 수정 CSV18/메타데이터1, front_1은 CSV18/메타데이터0 예외다.
-  새 설정의 정확한 session/hash/basis만 허용하며 다른 파일에 자동 확대하지 않는다.
-  알려진4개 trim 세션은 원본 angle CSV로 검증된 시간 복원만 허용한다.
-- **set zero 등으로 생긴 짧은 F/T 누락은 사용자의 합의대로 학습에서 제외한다.** 빈칸/NaN/
-  Inf/비수치, 필요한 유효성 flag 실패, 허용 매칭 시간차 초과 등을0이나 무부하로 채우지 않는다.
-- invalid 행을 포함하거나 가로지르는 시계열 창도 제외한다. 기본30행이 다시 연속 유효해야
-  사용한다. 원래 행/시간 공백을 유지하고 누락 전후를 이어 붙이지 않는다. 비증가 timestamp나
-  간격 중앙값×1.5 초과도 창 경계다. 사용 소스는 현재 Kalman이며 raw만 누락되면 별도로 판단한다.
-- set-zero 이벤트 검출/추가 안정화 시간/영점 변화 보정은 미구현이다. 정상 숫자·flag로 저장된
-  값까지 자동 제외되는 것은 아니다. 30행 조건을 물리적 필터 안정화 보장으로 표현하지 않는다.
-  분석: [F/T 누락 점검](docs/analysis/ft_missing_20260928/README.md).
-
-## 학습·예측·재사용
-
-- 실행법: [DATASET_FOLDERS](docs/DATASET_FOLDERS.md). train.py --prepare-only는 데이터 준비만,
-  scripts/train_folders.sh는11모델 학습, predict.py --test-root ... --output 새경로는 별도 평가다.
-- 새 결과는 results/의 날짜·실험별 경로에 저장한다. 모델별 predictions.csv, 지표, 설정,
-  split_manifest와 hash를 보존하고 기존 결과/부모 체크포인트를 덮어쓰지 않는다.
-- --init-checkpoint는 부모 가중치+고정 X/Y scaler로 새 optimizer를 시작한다. 입력 열/순서,
-  정답 계약/시간창/하중 기준이 같아야 한다. 입력 조합 변경은 새 학습이다.
-  --resume은 완료 모델 건너뛰기이며 optimizer 단계 복원이 아니다.
-- 새 녹화 단위 validation을 부모가 이미 본 경우 거절한다. 부모/과거 test 역할 이력을 보존한다.
-  옛 체크포인트에 없는 조상 hash를 복원했다고 주장하지 않는다.
-- 과거 configs/tip_force.json, body_force.json, tip_front_finetune_20260927.json은 명시 목록 및
-  같은 녹화 앞80%/뒤20%+양쪽2초 purge의 승인된 역사적 예외다. 신규 폴더 설정과 혼동하지 않는다.
-
-## 결과 해석과 확인 위치
-
-- 기존 두 실험: results/20260926_tip_body_v1/, results/20260927_tip_front_finetune_v1/.
-  각 RESULTS.md와 CODEX_HANDOFF의 현재 요약을 확인한다. 다른 PC에 없으면 별도 복사가 필요하다.
-- front 추가학습 validation 선택 LSTM: test XYZ92.65mN, 축별119.63/69.70/81.14mN.
-  **모든 축90mN 이하를 달성한 것은 아니다.** test 최저모델을 validation 선택모델로 바꾸지 않는다.
-- 위치 Transformer 세 구간84.04%는 같은 녹화 val의 유부하 위치 정확도다.
-  독립 ID18-only test의 끝단 구간 재현율61.04%와 구분한다. 전체3구간+무부하 독립80%로 말하지 않는다.
-
-## 다른 PC 환경과 검증
-
-- 현재 PC의 Python은 /home/daeyun/HRM_env/bin/python. 다른 PC에서 이 경로를 강제하지 말고
-  현지 가상환경을 확인한 뒤 HRM_PYTHON으로 셸 스크립트 인터프리터를 지정한다.
-  Python3.10.12 / PyTorch2.7.1+cu126은 이 PC의 검증 이력이며 다른 PC 호환 보장이 아니다.
-- 저장소 루트에서 현지 Python으로 `python -m unittest discover -s tests -v`.
-  최근 전체84개 통과, 이후 입력 차원2개/F/T 누락5개 관련 재검증 통과. 코드 수정 시 적절한
-  회귀검증을 수행하고 README/WORK_LOG에 실제 결과를 기록한다.
-- 의존성은 requirements.txt, 검증 이력은 docs/ENVIRONMENT.md 및 각 실험 pip_freeze.txt.
-  환경이 없으면 현지 환경을 준비하고 import/GPU/테스트를 확인한다. 가상환경 폴더 자체를
-  다른 PC에서 바로 실행 가능하다고 가정하지 않는다.
-- 코드·configs·문서는 함께 전달해야 한다. datasets/와 results/는 .gitignore 대상이라
-  Git clone만으로 오지 않는다. 2026-09-28 현재 AGENTS/HANDOFF/대부분 코드도 Git 미추적이며
-  인계 전 파일 포함 여부를 확인한다. 실제 다른 PC 복사/commit/push 완료를 추측하지 않는다.
-- 이 저장소는 비-ROS 학습 프로젝트다. 사용자 요청 없이 다른 저장소를 수정하거나
-  ROS/카메라/모터를 실행하지 않는다. 이 PC의 sandbox/도구 오류를 다른 PC의 영구 제한으로 쓰지 않는다.
+- 사용자는 직접 관리할 수 있는 적은 파일 수를 원한다. 핵심 Python은 루트의
+  train.py, predict.py, model_zoo.py, data_utils.py, analyze_no_load.py5개이며 실제 구현을 담는다.
+  2026-10-06 명시적 요청으로 organize_results.py(저장 Excel 재정리)를 별도 추가했다.
+  scripts/는 환경용 shell2개와 predict_and_organize.sh(예측 성공 후 정리)다. 기존 hrm_force/보조 코드는
+  archive/code_before_simplification_20261005_172216.tar.gz, 이전 문서는
+  archive/legacy_materials_20260928.tar.gz에 보존했다.
+- 사용자 설정은 configs/train.yaml. input_columns, XYZ순서의 force_columns, id_column을 직접 지정한다.
+  기본 입력26은 길이4+장력4+상대각18이며 rad·0·부호를 보존한다. Timestamp·ID·F/T 정답을 X에 넣지 않는다.
+  기본 정답은 Kalman aligned XYZ, hrm_base, mN→학습N이다. 회귀 부호·영점을 임의 변경하지 않는다.
+  향후 제어 연결에서만 역정규화 XYZ에 -1을 한 번 적용한다.
+- force_net과 location_net은 독립이다. 모든 힘×위치×무부하 방식 조합마다 새 모델/optimizer를 만든다.
+  조합 간 분기 가중치 재사용·warm start·resume는 제공하지 않는다. 기본11×11×2=242조합이다.
+  window_samples: 30은 현재 포함30행이며 최적 길이 검증값이 아니다. 과거 참조 저장소의 기본값은
+  시계열 계열5행/MLP·CNN·ConvMixer·ResNet1행이었다.
+- 힘은 기본 ID18 전용이며 유무부하에서 연속 실측값을 학습한다. Body 정답을 tip힘0으로 만들지 않는다.
+  우선순위는 tip힘 정확도, 별도 body contact 모드의 구간 인식 약90% 목표다. 달성을 주장하지 않는다.
+  2026-10-06 운용 요구 정정: 동시 다중 접촉은 제외하지만 무부하/tip/body를 상시 자동 구분해야 한다.
+  수동 body 감지 ON/OFF 제안은 최종 요구가 아니다. 별도3상태 학습은 제외하고 기존ID 출력을 해석한다.
+  전체 ID 힘은 force_scope: all_single_contact 별도 실험이다. 운용/제어 연결은 미구현이다.
+  masked는 유부하 조건부 위치분류로 자체 무부하 검출이 없다. class0는 명시적 무부하0이다.
+  과거 bundle의 불확실 라벨은 위치 loss에서 제외한다. GT로 masked 예측을0으로 바꾸지 않는다.
+  실시간 요구: 부하 판정·ID·예측 주변±n 확률/히트맵과 연속 힘 표시. 낮은 위치 확률이면
+  유무부하와 관계없이 운용 기본ID18을 쓰려는 요청이 있다. 판정 확률의 정의/임계값은 확인 중이며 미구현이다.
+  기본ID와 원 예측/확률·부하 판정을 구분하고 기본값 적용을 tip 접촉 검출로 간주하지 않는다.
+  2026-10-07 운용 의도 확인: 기준 힘 이하는 예측과 관계없이 기본ID18/tip 힘으로 취급한다.
+  기준 초과는 예측ID18이면tip, ID1–17이면body다. 신호/합력·각축/임계값 및초과시class0 ID0 처리는
+  미확정이며 제어 구현은 아직 없다. 학습GT/원래예측은 보존한다. 통합기록76절 참조.
+- 새 무부하 기준은 ft_sensor_calibration의 unit과 fx/fy/fz [최솟값, 최댓값]을 직접 지정한다.
+  force_columns의 CSV 값과 단위만 맞춰 비교한다. 세 축 모두 범위 안(경계 포함)이면 무부하,
+  한 축이라도 밖이면 유부하다. 자동 offset 차감·교정 CSV 읽기·10% 확대·불확실 구간은 없다.
+  초기값은 기존 무부하 범위를 CSV 좌표로 옮긴 비대칭 범위다. 회귀 정답·부호는 보존한다.
+  과거 bundle의 center/scale/이중 경계 판정은 저장 교정으로 재현하며 새 기준으로 바꾸지 않는다.
+  analyze_no_load.py의 --input은 선택 CSV 통계만 구하고 학습 범위를 자동 변경하지 않는다.
+  softmax 확률을 보정된 물리적 접촉 신뢰도로 보증하지 않는다.
+- 원본 CSV는 읽기 전용. 최신 train48(dynamic30+static18)/test19이며 test 폴더는 그대로 고정한다.
+  각 train CSV의 숫자 행 앞80%/뒤20%를 train/validation으로 사용한다(validation_fraction: 0.2).
+  Scaler는 train만 사용하고 파일/역할을 넘는 창을 금지한다. 각 실험 CSV는 하나의 ID다.
+  사용자 합의대로 선택 X/Y의 빈칸·비수치·NaN/Inf 행을 제외한 뒤 순서대로 연결한다.
+  valid/frame/matching-time/시간 간격 검사는 생략한다. Timestamp는 추적용이다.
+  결측을0/무부하로 채우지 않는다. source_row를 남기며 입력만으로 추론할 수 있다.
+  정확한 hash의 라벨/역할 예외는 data_utils.DEFAULT_DATA_CONTRACTS에 보존한다.
+  원본·수정본 중복과 과거 개발/test 역할 보호를 유지한다. 별도실험/동일녹화분할 평가는 구별한다.
+- 새 핵심 경로는 numeric_compact만 지원한다. 과거 audited bundle의 가중치는 복원할 수 있지만,
+  데이터 준비/예측 재현은 보관 코드를 별도 폴더에서 사용한다. 과거 전처리를 자동 변경하지 않는다.
+- 모델/구간 선택은 validation만 사용한다. 정확ID·구간recall·무부하검출·축별/전체RMSE·MAE를
+  구분하고 support를 남긴다. ID18-only test를 전체body 평가라고 부르지 않는다.
+- 결과는 results/train/날짜_시간, results/predict/날짜_시간. 조합별 hrm_bundle.pt와
+  비교표·최선모델요약·설정/교정/분할을 저장한다. 학습은 validation.xlsx, 예측은 predictions.xlsx 하나다.
+  기본44모델시트+2요약시트이며 대표 분기는 설정의 첫 파트너로 고정한다. 모든242조합 지표는
+  comparison에 남기고 test로 대표를 선택하지 않는다. Predict는 모든 완료 조합을 평가하되
+  predictions.csv는 방식별 validation 선택 모델이다. 원본·기존결과·부모checkpoint를 덮어쓰지 않는다.
+- organize_results.py는 predictions.xlsx/동일 형식 validation.xlsx만 읽고 GT+모델별 열의
+  힘2방식 파일 및 양방식 ID파일을 입력 옆 organized_날짜_시간_id-tol-N에 별도로 생성한다. 세 Excel 파일명에도 id-tol-N을 넣는다.
+  CSV/모델/현재 YAML 재로딩·재라벨·추론은 없다. 원본 파일/행으로 모델 간 GT를 대조한다.
+  구간 기본값1–4/5–10/11–18은 이전 비교의 고정값이며 자동 선택하지 않는다.
+  --id-tolerance N(기본2, 0–17)으로 평가 허용 거리를 지정한다. 학습/예측값은 바꾸지 않는다.
+  ID ±n 조건부와 검출 포함 성능을 구분하고 무부하 GT의 거리 평가는 빈칸이다.
+  predict_and_organize.sh도 같은 옵션을 받는다. 기존 기본±2 결과와 정확ID/±1/±2 요약을 유지한다.
+  Masked에 무부하 검출을 만들지 않는다. 상세 기록60절 참조.
+- 2026-10-05 최신 사용자는 현재 설정의 실제 전체 재학습·test·실측/예측 Excel·RMSE/MAE 검산을
+  명시적으로 승인했고 20261005_194129의242조합·484분기 학습과 전조합test를 완료했다.
+  Validation/test Excel88모델시트 전수 검산 통과, 원본67CSV와 무부하hash 불변이다. 통합 기록39절 참조.
+  선택은 양방식 모두 힘MLP/위치Transformer, 독립tiptest XYZ RMSE136.53mN이다.
+  Validation선택 구간1–4/5–10/11–18의 body 동일녹화test 조건부정확도 masked80.96%/class077.40%다.
+  이는 독립body 성능 또는90%달성이 아니다. class0는 검출누락까지 포함한 body 구간성공률54.44%다.
+  Excel힘6열은 mN이며 별도 force_axis_metrics.csv는 모델/방식당 한 행(22행)이다.
+  기존 결과는 사용자가 results_legacy_1004에 별도 보관했고 해당패턴도 Git에서 제외했다.
+- 2026-10-06 최신 사용자 실행은 train20261006_211528/test20261006_221159이며242조합 완료다.
+  Validation 선택은 양방식 힘MLP/위치Transformer. 동일 예측의 body조건부 ±2→±3는
+  masked82.16→87.14%/class078.15→84.48%, class0 검출 포함60.66→64.21%다.
+  독립tip 힘MLP XYZ RMSE138.56mN, class0 유부하tip 최종ID18 정답률32.69%.
+  44시트/거리평가/힘지표 검산, 기존6개organized파일의 id-tol-N 이름변경 및hash불변 확인은73절.
+- 환경은 env_hrm_force_estimation(uv Python3.10.20, torch2.7.1+cu126).
+  이 PC만 .runtime/nvidia-580.173.02 우회를 프로세스에 적용한다. 다른PC에 강제하지 않는다.
+  전체 검증: bash scripts/hrm_python.sh -m unittest discover -s tests -v.
+- 다른 저장소·ROS·카메라·모터는 사용자 요청 없이 실행/수정하지 않는다.
+  datasets/results/venv는 Git 제외이므로 clone만으로 전달됐다고 가정하지 않는다.
