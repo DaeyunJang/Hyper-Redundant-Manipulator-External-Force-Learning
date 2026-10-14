@@ -172,6 +172,10 @@ def load_config(path):
     if config['id_column'] in columns:
         raise ValueError('ID and force targets must use distinct columns')
     config['input_columns'] = config['feature_columns'] = input_columns(config)
+    comparison = config.get('comparison_columns', [])
+    if (not isinstance(comparison, list) or
+            not all(isinstance(c, str) and c for c in comparison) or len(comparison) != len(set(comparison))):
+        raise ValueError('comparison_columns must list distinct column names (or be empty)')
     forbidden = set(columns) | {config['id_column'], config.get('timestamp_column'),
                                'contact_segment_id', 'elapsed_s', 'trial_id', 'experiment_id', 'session_id',
                                'load_state', 'is_loaded', 'source_row', 'source_file'}
@@ -250,7 +254,7 @@ def _timestamp(value):
 
 
 def load_trial(path, config, calibration, require_targets=True):
-    """선택 X/Y의 숫자 행만 남깁니다. valid flag·시간 간격은 행 선택에 쓰지 않습니다."""
+    """선택 X/Y 숫자 행을 연결합니다. 선택적 comparison_columns는 비교용 행 선택에만 씁니다."""
     if config.get('preprocessing', 'numeric_compact') != 'numeric_compact':
         raise ValueError('Audited legacy preprocessing requires the archived runner; no automatic policy change')
     path = Path(path).resolve()
@@ -263,6 +267,8 @@ def load_trial(path, config, calibration, require_targets=True):
         header = next(csv.reader(stream), [])
     has_targets = all(column in header for column in targets)
     required = features + (targets + [id_column] if require_targets else [c for c in targets + [id_column] if c in header])
+    comparison = config.get('comparison_columns', [])
+    required += [c for c in comparison if c in header]
     if time_column and time_column in header:
         required.append(time_column)
     frame = _frame(path, required)
@@ -271,8 +277,17 @@ def load_trial(path, config, calibration, require_targets=True):
     label = pd.to_numeric(frame.get(id_column, pd.Series(np.nan, index=frame.index)), errors='coerce').to_numpy(dtype=float)
     x_ok, y_ok = np.isfinite(x).all(1), np.isfinite(force).all(1)
     # 평가 CSV는 동일한 X/Y 유효 행을 사용하고, 정답 열 자체가 없는 추론은 X만 사용합니다.
-    keep = x_ok & y_ok if require_targets or (has_targets and y_ok.any()) else x_ok.copy()
-    if require_targets:
+    evaluating = require_targets or (has_targets and y_ok.any())
+    keep = x_ok & y_ok if evaluating else x_ok.copy()
+    comparison_applied = bool(comparison and evaluating)
+    comparison_ok = np.ones(len(frame), dtype=bool)
+    if comparison_applied:
+        missing = set(comparison) - set(frame.columns)
+        if missing:
+            raise ValueError(f'Missing comparison columns in {path}: {sorted(missing)}')
+        comparison_ok = np.isfinite(_number(frame, comparison)).all(1)
+        keep &= comparison_ok
+    if require_targets or (comparison_applied and id_column in frame):
         keep &= np.isfinite(label)
     excluded = config.get('excluded_rows_by_sha256', {}).get(before)
     if excluded:
@@ -331,6 +346,9 @@ def load_trial(path, config, calibration, require_targets=True):
             'source_row_policy': 'source_rows maps compact positions to zero-based original CSV data rows',
             'timestamp_policy': 'metadata only; never a model input or a window boundary',
             'force_frame_basis': config.get('force_frame', 'user-selected XYZ columns; no frame-flag checks')}
+    if comparison:
+        info.update(comparison_columns=comparison, comparison_filter_applied=comparison_applied,
+                    comparison_nonfinite_rows=int((~comparison_ok).sum()))
     if sha256(path) != before:
         raise ValueError(f'CSV changed while reading: {path}')
     return Trial(str(path), before, raw_id, effective, x, force, timestamps,
@@ -343,29 +361,6 @@ def _reject_duplicates(trials):
         if trial.sha256 in seen:
             raise ValueError(f'Duplicate CSV bytes: {seen[trial.sha256]} and {trial.path}')
         seen[trial.sha256] = trial.path
-
-
-def reject_shared_numeric_rows(development, tests):
-    """파일 이름/표기만 바꾼 train/test 중복 행도 선택 X/Y 값으로 확인합니다."""
-    if not tests:
-        return
-    def values(trial):
-        array = np.column_stack((trial.x, trial.force)).astype(np.float64)
-        array[array == 0] = 0.
-        return array
-    seen = {}
-    arrays = [values(trial) for trial in development]
-    for index, array in enumerate(arrays):
-        for row, key in enumerate(pd.util.hash_pandas_object(pd.DataFrame(array), index=False)):
-            seen.setdefault(int(key), (index, row))
-    for trial in tests:
-        array = values(trial)
-        for row, key in enumerate(pd.util.hash_pandas_object(pd.DataFrame(array), index=False)):
-            if int(key) in seen:
-                index, old_row = seen[int(key)]
-                if np.array_equal(array[row], arrays[index][old_row]):
-                    raise ValueError(f'Train/test share selected X/Y data: {development[index].path} row '
-                                     f'{development[index].source_rows[old_row]} / {trial.path} row {trial.source_rows[row]}')
 
 
 def prepare_data(config, run_dir=None):
@@ -429,7 +424,7 @@ def prepare_data(config, run_dir=None):
     declared_tip = {_path(path, config) for path in config.get('tip_train_files', [])}
     if declared_tip - set(development):
         raise ValueError(f'Missing explicitly declared tip files: {declared_tip - set(development)}')
-    reject_shared_numeric_rows(trials[:len(development)], trials[len(development):])
+    # 사용자 지정 train/test를 사용하며, 두 폴더 사이의 X/Y 행 값은 비교하지 않습니다.
     audit = {'schema_version': 2, 'feature_columns': input_columns(config),
              'force_columns': config.get('force_columns', [f'fts_kalman.aligned_f{a}' for a in 'xyz']), 'force_unit': 'N', 'force_frame': config.get('force_frame', 'unverified'),
              'source_files': len(trials), 'development_files': len(development), 'test_files': len(tests),
@@ -441,6 +436,9 @@ def prepare_data(config, run_dir=None):
              'preprocessing': 'numeric_compact; finite selected X/Y only; remaining rows joined within each file and role',
              'timestamp_policy': 'provenance only; no flag/frame/matching-time filtering or time-gap window breaks',
              'test_evaluation_scope': config.get('test_evaluation_scope', 'user_defined')}
+    if config.get('comparison_columns'):
+        audit['comparison_columns'] = config['comparison_columns']
+        audit['preprocessing'] += '; also require finite comparison_columns; these do not expand model inputs'
     if run_dir is not None:
         output = Path(run_dir)
         output.mkdir(parents=True, exist_ok=True)
@@ -455,7 +453,7 @@ def prepare_data(config, run_dir=None):
 def load_prediction_trials(paths, config, calibration):
     """학습 당시 교정만 사용하며 정답이 없는 입력도 예측할 수 있습니다."""
     trials = [load_trial(_path(path, config), config, calibration, require_targets=False) for path in paths]
-    _reject_duplicates(trials)
+    # 예측 중복 경고는 predict.py의 --check-overlap으로 선택하며 파일을 제외하지 않습니다.
     return trials
 
 

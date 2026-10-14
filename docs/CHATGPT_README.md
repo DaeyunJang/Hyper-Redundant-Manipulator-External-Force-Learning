@@ -1,6 +1,6 @@
 # HRM 외력·접촉 위치 추정 — 현재 설계와 작업 기록
 
-기준일: **2026-10-07, Asia/Seoul**. 요구사항·실제 구현·검증·후속 작업을 이 문서에서 관리한다.
+기준일: **2026-10-14, Asia/Seoul**. 요구사항·실제 구현·검증·후속 작업을 이 문서에서 관리한다.
 사용자의 최신 요청이 우선이며 문서 안의 과거 기록이나 실행 예시는 새로운 실행 승인으로 해석하지 않는다.
 이전 문서·설정·일지 등 41개 파일은 [보존 archive](../archive/legacy_materials_20260928.tar.gz)에 있다.
 Archive에는 정리 전 이 문서와 WORK_LOG, 인계 문서, 과거 설정 및 분석 근거도 포함된다.
@@ -12,11 +12,113 @@ Archive에는 정리 전 이 문서와 WORK_LOG, 인계 문서, 과거 설정 �
 2026-10-06 평가 허용 거리 `--id-tolerance N` 추가와 학습→예측→Excel 정리 명령 확인은 **70절**이다.
 2026-10-06 새 학습/예측 `20261006_211528`/`20261006_221159`의 ±2·±3 분석과 id-tol 파일명 표시는 **73절**이다.
 2026-10-07 기준 힘 이하를 운용상 ID18로 취급하는 의도 확인은 **76절**이다.
+2026-10-11 배치1024 유지 및 최초 각도/FK/estimated 공통 행 비교 준비는 **85절**이다.
+현재 설정은 일반4입력 + 공통 행 필터 없는 Estimated/FK 자세2입력이다(**110절**).
+110절의 설정 변경에 따른 실제 학습·예측은 사용자가 실행한다.
 현재 실행 방법은9절/README를 따른다.
 11–37절은 당시 구현/결과의 이력이며 그 안의 삭제된 스크립트 명령은 현재 명령이 아니다.
 
 ## 1. 현재 상태와 승인 범위
 
+- 2026-10-14 과거 전체 ID 힘 실험 확인 및 운용 의도 명확화(130절): 현재 results의6실행은 힘tip/위치전체ID지만,
+  보존 문서에서 9/26의20260926_tip_body_v1/body 11종이 ID1–18 힘을 실제 학습한 완료 기록을 확인했다.
+  구형 공유encoder 모델로 현재 독립 두 분기와 다르며 당시 가중치는 이 작업공간에서 찾지 못했다.
+  사용자는 모든 접촉점의 힘을 모니터링하고 ID18 힘만 어드미턴스에 넣으려 한다. 기존force_scope 한 항목으로
+  tip/all_single_contact 선택이 가능함을 확인했다. 코드·YAML·폴더 변경 및 새 학습은 요청하지 않았다.
+- 2026-10-14 사용자 실험 설명 반영(127절): 연구 의도는 접촉점의 외력 추정이고 현재 저장 힘 모델은
+  ID18 학습으로 제한되어 있음을 구분한다. D405 상단약45°/영상처리 흐름, 곡선 기반 Estimated와
+  상대각 기구학 기반 FK의 의도, 탄성케이블·F/T 연결과 left/right 의미, 기존2D/향후3D 제어실험을
+  사용자 확인으로 문서에 반영했다. 제어측 Class0 구현은 사용자 보고이며 외부 코드 검증은 아니다.
+  Raw 무부하 교정 설명과 저장된 Kalman 경계 이력, Estimated 회전의 metadata 차이는 남겨두었다.
+  기존 모델·라벨·설정·결과를 바꾸거나 새 학습/제어실험을 실행하지 않았다.
+- 2026-10-14 힘 정답 의미 확인(125절): 사용자는 Fx/Fy/Fz가 해당 contact ID 위치의 외력임을
+  재확인했다. 작용 위치와 hrm_base 표현 좌표계를 구분하여 논문 문서2.1절에 명시했다.
+  현재6실험은 여전히 force_scope=tip이므로 힘은 ID18만, 위치는 ID1–18을 학습했다.
+  전체 ID 힘 회귀로 설정을 바꾸거나 재학습하지 않았다.
+- 2026-10-13 논문 작성용 상세 문서(124절): [PAPER_RESEARCH_REPORT.md](PAPER_RESEARCH_REPORT.md)에
+  데이터·전처리·독립 힘/위치 모델·학습/선택·지표·6입력 결과·과거 실험·한계를 한 문서로 정리했다.
+  직전 쉬운 설명은 부록A에 보존하고, 축별 힘 오차·ID별 성능·11모델 상세 비교·논문 서술 초안을 포함했다.
+  문서와 이 기록만 추가/수정했으며 재학습·추론·코드/라벨/원본/기존결과 변경은 하지 않았다.
+- 2026-10-13 연구 설명 단순화(123절): 본문 비교에서는 class0의ID0제외 후보분석을 생략하고
+  최종출력 기준으로 정리한다. 동일GT유부하body8,242행에서 Masked 정확ID/±2/±3는
+  66.40/88.67/92.48%, Class0는53.91/72.53/74.50%다. Class0유부하검출77.58%,
+  별도무부하11,260행의무부하정답률94.85%를 구분한다. 지표나기존결과는 바꾸지 않았다.
+- 2026-10-13 결과 파일 범위 확인(119절): analysis의 force_and_id_all_combinations.xlsx는
+  1,452조합의 성능 집계표이며 행별 GT/예측 전체를 합친 파일이 아니다. 행별 비교는 각predict의
+  organized Excel에 있고, 이것도 첫파트너 고정 대표분기다. MATLAB 입력은organized 파일이다.
+- 2026-10-12 MATLAB 후처리 코드/ID 그림 안내(118절): 첨부한 이전 Fx/Fy/Fc 코드를 확인하고
+  현재 organized Excel용 analyze_matlab.m 하나를 추가했다. 저장 Fx/Fy/Fz의 모델별 RMSE/MAE,
+  선택 옵션의 ID 혼동행렬·허용거리 정확도·ID별±2 그래프를 제공한다. 기본 힘 평가는tip2다.
+  Fc는Fz가 아니며 GT 재필터는 하지 않는다. MATLAB 문법 검사와 실제22힘분기/ID 수식 대조를
+  통과했다. 이 PC에 MATLAB이 없어 .m의 실제 실행은 하지 않았다. 학습/추론 코드는 그대로다.
+- 2026-10-12 입력6종의 저장 예측 전체1,452조합 분석(117절): `20261011_151908_*`를 분석해
+  축별 힘 오차와 GT 유부하 ID ±2/±3, 검출 포함 성능을 Excel1개/그림1개로 정리했다.
+  10% 조건은 사용자 추가 답변으로 제외했다. 힘 우선 summary 선택과 ID validation 우선 선택을
+  구분했다. 각도 입력 Transformer의 body 조건부 ±2/±3는 masked88.67/92.48%,
+  class089.10/92.96%; class0 검출 포함72.53/74.50%다. 독립tip2 힘 class0 ResNet은
+  각도90.23/Estimated82.60/FK81.93mN XYZ RMSE다. 첫3입력 train48/나머지58,
+  자세 test 결측과 기존 summary_18_test의 중복 기록을 구분한다. 새 학습/추론은 하지 않았다.
+- 2026-10-12 Shell 실행 중 수정 문제 해결(116절): Excel 저장 직후 Is a directory 오류는
+  실행 중인 predict_and_organize.sh를115절에서 수정하여 Bash가 바뀐 뒷부분을 읽은 문제였다.
+  임시 환경에서 같은 line29/종료126을 재현했다. 전체 명령을 한 블록으로 읽고 마지막 정리를
+  exec로 실행하도록 바꿨으며, 실행 도중 파일 수정 후에도 정상 종료하는 검증을 통과했다.
+  각도 organized Excel3개는 ZIP 무결성을 확인했다. 진행 중인 Estimated/FK 학습은 건드리지 않았다.
+- 2026-10-12 최신 중복 검사 정책(115절): predict.py / predict_and_organize.sh에
+  --check-overlap을 추가했다. 기본은 중복 검사 생략, 옵션을 켜면 경고만 하고 계속 예측한다.
+  전체 조합/단일 모델 예측에 적용하며 동일 예측 입력 파일의 중복 차단도 제거했다.
+  자동 파일 제외는 없고, 학습 완료 후 test 내용 변경 등 중복과 별개인 검사는 유지한다.
+- 2026-10-12 예측 중복 차단 수정(114절): predict.py에 남아 있던 train/test 시각·행 수·hash
+  중복 차단을 전체 조합/단일 모델 예측 양쪽에서 제거했다. 사용자가 완료한
+  20261011_194754_cable_loadcell_angle의242조합과 저장 test19개 읽기를 확인했다.
+  commands.txt 끝에 각도 예측부터 나머지2입력 학습·예측·정리까지 이어가는 명령을 추가했다.
+  실제 전체 예측이나 재학습은 실행하지 않았다.
+- 2026-10-11 최신 요청(113절): 사용자가 행 비교로 실행을 막지 않도록 요청했다.
+  train/test 선택 X/Y 행 비교 함수·호출 및 직전112절의 ID18_right 자동 제외 규칙을 제거했다.
+  각도 설정의 실제 데이터 준비는 train58/test19로 통과했고 ID18_right도 포함된다.
+  원본 CSV는 보존했고 실제 학습은 실행하지 않았다. 아래112절의 자동 제외는 현재 적용하지 않는다.
+- 2026-10-11 이전 중복 처리(112절; 제외 규칙은113절에서 철회): train의 ID18_right는 기존 summary_18_test와 같은 기록이며
+  자세 관련 열만 달랐다. 원본과 test를 보존하고 해당 train 파일의 정확한 SHA256만 학습 제외로
+  등록했다. 각도/Estimated/FK TF 세 설정 모두 train57/test19 데이터 준비 검사를 통과했다.
+  실제 학습·예측은 실행하지 않았으며, 사용자는 날짜 생성 줄을 포함한 기존 반복문을 재실행한다.
+- 2026-10-11 최신실행확인(111절): 사용자가FK YAML을train_cable_loadcell_fk_tip_tf.yaml로
+  정리하고각도/Estimated/FK TF의3종반복문을추가했다. 세설정모두실제CSV입력열과일치하고
+  힘ID18/위치ID1~18, 설정당242조합이다. 명령/설정확인만했으며학습은실행하지않았다.
+- 2026-10-11 최신 설정(110절): 사용자 요청으로common 없는estimated_pose/fk_tip YAML2개를
+  추가했다. 두 설정은케이블4·로드셀4·XYZ3·quaternion4의15입력이며comparison_columns를쓰지않는다.
+  현재train58/test19의데이터준비검사를둘다통과했다. commands.txt에자세2종용for줄을주석으로
+  추가했으며기본4종반복문은유지했다. 실제학습/예측은실행하지않았다.
+- 2026-10-11 common 필요성 재확인(109절): 현재train은58CSV이며 각도/estimated 자세/공통 조건의
+  숫자행이모두960,227행으로같다. Test19CSV는각도28,336행/공통15,405행으로차이가남는다.
+  summary_18_test_2.csv는양쪽2,601행으로같다. 파일·필터삭제나새학습은수행하지않았다.
+- 2026-10-11 운용 의도 추가(108절): 사용자는 제어측에서 조절 가능한 별도 부하 기준으로
+  위치추정 사용 여부를 정하려 한다. 이 경우 양방식을 공통 제어흐름으로 연결할 수 있고
+  class0의 자체 무부하 판정은 필수가 아님을 설명했다. 판정 신호/문턱·코드는 아직 미확정이다.
+- 2026-10-11 제어 연결 구상(107절): 사용자는 제어 프로젝트의src/estimation_pkg/models에
+  학습된models를 복사하고force_estimation_node.py에서config의방식/힘모델/위치모델로bundle을
+  선택할 계획이다. Class0/Masked 차이와과거성능을설명했으며 노드/제어프로젝트는수정하지않았다.
+- 2026-10-11 최신 요청에 따라 ID1~18 범위에서 서로 떨어진5개 ID의 가장 가까운 입력 묶음을
+  조사했다(104절). 유부하/ID간격 조건과 명시한 정규화 거리에서 ID1·7·10·15·18이 최소였다.
+  최대 케이블차0.073328mm/장력차9.23g, 힘 벡터차1,026.70mN이며 원본 파일·행을 새Excel에 기록했다.
+- 2026-10-11 유사 입력 탐색의 의도를 정정했다(102절). 사용자는 두ID씩 비교한100절 결과가 아니라
+  한 묶음에ID1~18 각각을 포함한 비교를 원했다. 전체18-ID를 검사한 결과 기존0.05mm/5g 기준의
+  묶음은 없었다. 각18행인 근접 참고 묶음10개를 별도Excel에 저장했고 모두 기준 불충족으로 표시했다.
+- 2026-10-11 원본20260926 폴더의31개 summary에서 비슷한 cable/loadcell 입력과 다른 힘·각도를
+  가진10사례를 찾아 Excel1개에 정리했다(100절). ID1/5/10/15/18 사이 비교이며 완전 일치는 없고
+  명시한 허용차 안의 근사 일치다. 단일 시점 탐색이며 재학습/성능 평가/원본 수정은 하지 않았다.
+- 2026-10-11 사용자가 ROS bag의 최근 TF 값으로 자세 결측을 보완했다고 알렸다(98절).
+  현재 CSV를 다시 확인한 결과 static train의 estimated 자세 결측은 없지만 dynamic train/test에는
+  남아 있어 각도/자세 모델의 사용 행이 아직 다르다. Common2 설정을 유지했으며 새 학습은 하지 않았다.
+  95절의 행 수는 보완 전 데이터 기록이고 현재 행 수는98절을 따른다.
+- 2026-10-11 제어 프로젝트 전달 요청(97절): ID 추론과 예측 주변±id_tol 히트맵,
+  무부하 시 제어용ID18/tip 운용, 사용자가 선택하는 body contact ON/OFF를 요구했다.
+  최신 요청은 과거64절의 수동ON/OFF 제외 방향보다 우선한다. 현재 힘 모델은 여전히ID18 전용이며
+  실시간 부하 판정원·body 반응·OFF 세부 동작의 미확정 부분을 전달 초안에 표시했다. 제어 코드는 미구현이다.
+- 2026-10-11 최종 힘 추정 결과 정리의 test 대상은 사용자가 `summary_18_test_2.csv`로 지정했다(94절).
+  이는 힘 비교/보고 범위의 지정이며 기존 predict의 전체 파일 처리나 ID 평가 범위를 변경한 것은 아니다.
+- 2026-10-11 이전 설정(95절; 현재는110절로변경): 일반4입력은 선택 X/Y만 확인하고 끝단 자세 빈칸을 무시한다.
+  별도 common2입력은 케이블·로드셀을 고정하고 각도18 / estimated XYZ+quaternion7을
+  같은33열 공통 행으로 비교한다. FK 조건과 이전 파일 제외 목록을 제거해 train48/test19파일을 사용한다.
+  commands.txt는 일반4종 다음 common2종을 실행한다. 배치1024 유지, 실제 학습·예측은 사용자가 실행한다.
 - 최신 결과 분석(73절): 사용자의 `20261006_211528` 학습/`20261006_221159` test는242조합 완료다.
   Validation 선택은 양방식 힘MLP/위치Transformer다. Body 동일녹화test ±2→±3 조건부는
   masked82.16→87.14%, class078.15→84.48%, class0 검출 포함60.66→64.21%다.
@@ -3332,3 +3434,1767 @@ XYZ RMSE는3축 성분 전체의 제곱오차 평균 제곱근이며 벡터 크�
   기준 초과인데 최종ID0인 경우의 정책까지 body로 임의 확정하지 않는다.
 - 수행/검증:75절 기록과 사용자 정정을 대조해 위 운용 의도를 문서에 반영했다.
   이번에는 이해 확인과 기록만 수행했으며 코드/설정/학습/추론/제어 동작은 변경하지 않았다.
+
+## 77. 2026-10-08 — 네 입력 조합의 동일 시각 폴더 명령 안내
+
+- 최초 요청은4입력 조합의 실제 학습/test/Excel 결과였다. 이후 사용자가 실제 실행은 직접 하며
+  YAML/실행스크립트 준비만 요청했고, 마지막에는 직접 만든4개 YAML에 사용할 터미널 명령으로
+  범위를 좁혔다. 최종 요청을 따라 실제 학습·예측은 시작하지 않았고 새 실행스크립트도 추가하지 않았다.
+- 현재 사용자가 수정한 YAML을 확인했다: train_cable_loadcell.yaml=8입력,
+  train_cable_angle.yaml=22입력, train_loadcell_angle.yaml=22입력,
+  train_cable_loadcell_angle.yaml=26입력이다. 사용자 YAML은 수정하지 않았다.
+- 아래 블록은 시각을 한 번만 정하고 각 YAML 이름을 train/predict 폴더 뒤에 붙인다.
+  각 입력마다 학습→test 예측→±2 정리를 순서대로 실행한다. 정리 Excel은 원래 위치에 남기고
+  입력 이름을 덧붙인 복사본12개를 results/input_comparison/같은시각에 모은다.
+  Subshell 안의 set -e로 실패 시 뒤 단계를 중단하며 사용자의 터미널을 종료하지 않는다.
+
+```bash
+(
+  set -e
+  HRM_RUN_ID="$(TZ=Asia/Seoul date +%Y%m%d_%H%M%S)"
+  HRM_EXCEL_DIR="results/input_comparison/$HRM_RUN_ID"
+  mkdir -p results/input_comparison
+  mkdir "$HRM_EXCEL_DIR"
+
+  for HRM_INPUT in cable_loadcell cable_angle loadcell_angle cable_loadcell_angle; do
+    HRM_NAME="${HRM_RUN_ID}_${HRM_INPUT}"
+
+    bash scripts/hrm_python.sh train.py \
+      --config "configs/train_${HRM_INPUT}.yaml" \
+      --output "results/train/$HRM_NAME"
+
+    bash scripts/predict_and_organize.sh \
+      "results/train/$HRM_NAME" \
+      "results/predict/$HRM_NAME" \
+      --id-tolerance 2
+
+    for HRM_FILE in "results/predict/$HRM_NAME"/organized_*_id-tol-2/*.xlsx; do
+      HRM_FILENAME="${HRM_FILE##*/}"
+      cp -- "$HRM_FILE" "$HRM_EXCEL_DIR/${HRM_FILENAME%.xlsx}_${HRM_INPUT}.xlsx"
+    done
+  done
+)
+```
+
+- 앞선 요청에서 완료한 최소 변경: organize_results.py의 힘 Excel 첫 시트 force_all에
+  GT XYZ와 모든 모델의 예측 XYZ를 한 시트로 추가했다. 기존 fx/fy/fz 시트와 메타데이터는 유지한다.
+  전체 unittest39개가 통과했고, 위 명령은 bash -n으로 확인만 했다. 실제 학습 명령 실행은 없다.
+- 사전 데이터 감사 결과: 선택 입력만의 finite 행 제거를 사용하면 일부 reduced-input 설정에
+  기존26입력보다 추가 행이 들어간다. Cable+angles는 train91/test1,201행, loadcell+angles는
+  train5/test30행이 추가된다. 동일 행으로 맞출 정확hash 제외 규칙은 /tmp에서 검증했으나,
+  최신 요청의 간단한 명령에는 적용하지 않았다. 위 명령은 각 YAML과 기존 전처리를 그대로 사용한다.
+  따라서 후속 입력 비교에서 같은 파일이라도 support/시계열창이 다를 수 있음을 확인해야 한다.
+- 원본67CSV는 이전 실행의hash와 같았다. 공통행 규칙을 적용하는 별도읽기전용 감사에서는
+  train727,419/validation180,834/test27,785창 및tip힘71,007/17,687/8,283창의 일치를 확인했다.
+  이 감사는 모델 학습이나 새 예측 성능 측정이 아니다. GPU 접근 점검만 수행했다.
+- 준비 중이던 results/input_ablation/20261008_215306은 실행 전 설정/manifest만 생성된 폴더다.
+  이를 학습 완료 결과로 해석하지 않도록 사용자 직접 실행으로 범위가 변경됐음을 manifest에 기록했다.
+- 논문 결과 정리는 학습 후 수행할 항목으로 남긴다. 정답±n 거리 성공률, 검출 포함 성능,
+  동일녹화 body test/독립 tip test, validation 모델 선택을 구분한다. 이번4입력 성능 수치는 아직 없다.
+
+## 78. 2026-10-11 — cable_angle 데이터 준비 실패: test CSV 안의 ID 혼재
+
+- 요청: 사용자 실행 중 summary_10_test.csv에서 ‘Each retained CSV must have one integer
+  contact ID’ 예외가 발생했다. 실제 원인을 재현하고 다른 파일에도 같은 문제가 있는지 확인한다.
+- 원인: ID10 test의 정상1,795행 뒤에 ID9인12행이 있다. 이12행은 로드셀4열이 전부 비어 있다.
+  기존26입력/cable+loadcell/loadcell+angle에서는 입력 결측으로 제외되지만 cable+angle에서는
+  선택 X/Y와 ID가 모두 숫자여서 남는다. 따라서 하나의 CSV에 ID9/10이 함께 남아 기존 검사가 실패한다.
+  이는 정수형 변환 실패가 아니라 서로 다른 정수ID의 혼재다.
+- 전체 train48/test19 CSV를 현재5개 YAML의 finite 행 기준으로 검사했다.
+  동일한 ID 혼재로 실패하는 경우는 아래4개 test의 cable_angle 설정이다.
+  아래 CSV 행 번호는 헤더를1행으로 포함하며 Excel에서 보이는 행 번호와 같다.
+
+| 파일 | 정상 ID·행수 | 다른 ID | 해당 CSV 행 | 다른ID 행수 |
+|---|---|---|---|---:|
+| summary_2_test.csv | ID2,793행 | ID1 | 795–1338 | 544 |
+| summary_3_test.csv | ID3,1,049행 | ID1 | 1051–1338 | 288 |
+| summary_4_test.csv | ID4,980행 | ID3 / ID1 | 982–1050 / 1051–1338 | 69+288=357 |
+| summary_10_test.csv | ID10,1,795행 | ID9 | 1797–1808 | 12 |
+
+- 총1,201행의 로드셀4열이 모두 결측이다. ID10 원본SHA256은
+  97b7237f985e51812cbd9b8dfed312f4ca87883f3a6bf6be8a31ae5953ec95fe로 이전 감사와 같다.
+  앞선77절 명령 안내에서 추가로 남는 행의 ID 혼재까지 확인하지 못했음을 사용자에게 설명했다.
+- 실제 실행 상태: results/train/20261008_220437_cable_loadcell은242조합 완료이고,
+  같은 이름의 predict 결과도242조합 완료·organized3파일이 있다. cable_angle의 동일시각
+  train 폴더는 비어 있어 모델 학습 전에 중단된 상태다. 기존 완료 결과를 다시 학습하지 않았다.
+- 사용자 확인 질문: ID10 파일의 마지막12행이 실제ID9 실험이 섞인 것인지, 실제ID10인데
+  ID만 잘못 기록된 것인지 물었다. 아직 답변 전이다. 데이터 의미를 임의로 정해ID를 바꾸거나
+  원본행을 삭제하지 않았다. 나머지3파일도 같은 원인 설명에 포함한다.
+- 해결 방향은 실제 실험 의미에 따라 결정한다. 다른 실험이 섞인 행이라면 원본을 보존하는
+  정확hash별 행 제외 등으로 단일ID 실험의 평가 범위를 유지할 수 있다. ID 오기라면 올바른
+  정답 확인 후 별도로 처리한다. 단순히 다수ID/파일명으로 모든 행을 재라벨하지 않는다.
+- 검증:4개 문제 파일을 현재 load_trial로 직접 읽어 동일 예외를 모두 재현했다.
+  전체67파일의 모든 입력조합에서 retained ID 집합을 검사했으며 검사 전후 원본hash 불변을 확인했다.
+  상세 감사는 /tmp/hrm_id_failure_audit_20261011.json에 있다. 코드/설정/원본/기존결과는
+  수정하지 않았고 학습/추론도 실행하지 않았다. 미완료는 문제 행의 실제 실험ID 확인과 적용 방식 결정이다.
+
+## 79. 2026-10-11 — 사용자 데이터 정리 후 단일 YAML 실행 명령 재확인
+
+- 요청: 사용자가 문제 행을 삭제했다고 알렸으며, 입력별 YAML을 직접 선택해
+  학습→test 예측→Excel 정리를 실행하는 기존 명령이 맞는지 확인했다. 실제 실행은 사용자 몫으로
+  유지하고 이번에는 데이터 준비와 명령 연결만 검사했다.
+- 명령은 올바르다. `--config`만 원하는 YAML로 바꾸면 된다. `&&`로 학습 성공 후에만
+  predict_and_organize.sh가 실행되며, 이 스크립트는 예측 성공 후 organize_results.py를 실행한다.
+  예측에는 학습 bundle에 저장된 입력 열/설정/정규화가 사용되므로 YAML을 다시 지정하지 않는다.
+  `--id-tolerance 2`는 정리 단계의 거리 평가 기준이다. 학습마다 첫 줄의 시각 변수를 새로 지정한다.
+- Bash 문법 검사에 통과했다. 현재 train48/test19개를 실제 prepare_data 경로로 검사한 결과는 아래와 같다.
+  학습 모델/optimizer는 생성하지 않았고 학습·추론·새 결과 Excel 생성도 실행하지 않았다.
+
+| YAML | 입력 수 | 데이터 준비 결과 | train / validation / test 창 수 |
+|---|---:|---|---|
+| train_cable_loadcell.yaml | 8 | 통과 | 727419 / 180834 / 27785 |
+| train_cable_angle.yaml | 22 | 실패: summary_2_test.csv ID 혼재 | 생성 전 중단 |
+| train_loadcell_angle.yaml | 22 | 통과 | 727423 / 180835 / 27815 |
+| train_cable_loadcell_angle.yaml | 26 | 통과 | 727419 / 180834 / 27785 |
+| train.yaml | 26 | 위 전체 입력 YAML과 경로 외 설정이 동일함을 확인 | 동일 |
+
+- 현재 디스크에 남은 문제: summary_2_test.csv의 CSV795–1078행(헤더1행 포함)284행은 ID1이다.
+  CSV2–794행793행의 ID2와 함께 cable_angle의 유효 숫자 행으로 남아 동일한 단일ID 검사가 실패한다.
+  test19개 전체를 확인했으며 cable_angle에서 ID가 혼재하는 파일은 이제 이 파일1개다.
+  사용자가 삭제했다고 한 사실과 별개로 현재 저장된 파일의 내용을 기준으로 보고한다.
+- train.yaml 및 통과한3개 입력 조합에는 각242개 조합이 설정되어 있다. 입력별 finite 행 수가
+  달라지는 기존 전처리는 유지하며, 입력 비교 시 support 차이도 함께 확인한다.
+- 코드/YAML/원본 CSV/기존 결과/commands.txt는 변경하지 않았다. 상세 남은 ID 행 진단은
+  /tmp/hrm_remaining_mixed_ids_20261011.json에, 뒤2개 준비 검사는
+  /tmp/hrm_remaining_command_checks_20261011.json에 저장했다.
+- 미완료/다음 작업: 사용자가 cable_angle 실행 전에 위284행을 확인·정리해야 한다.
+  이번 답변은 데이터 준비 및 명령 구조의 검증이며 실제 학습·예측 성공을 주장하지 않는다.
+
+## 80. 2026-10-11 — 단일 실행의 train/predict 폴더에 입력 이름 붙이기
+
+- 요청: 사용자가 실행할 명령의 결과 폴더 뒤에 cable/loadcell/angle 입력 이름을 붙이는 방법을 확인했다.
+- 안내: `HRM_INPUT="loadcell_angle"`, `HRM_RUN_ID="$(TZ=Asia/Seoul date +%Y%m%d_%H%M%S)"`,
+  `HRM_NAME="${HRM_RUN_ID}_${HRM_INPUT}"`를 순서대로 정의한다. YAML은
+  `configs/train_${HRM_INPUT}.yaml`, 학습 출력과 예측 입력은 `results/train/$HRM_NAME`,
+  예측 출력은 `results/predict/$HRM_NAME`으로 맞춘다. HRM_INPUT은 실제 파일명에 맞춰
+  cable_loadcell / cable_angle / loadcell_angle / cable_loadcell_angle 중 선택한다.
+- 검증: 학습→predict_and_organize.sh→±2 정리 명령의 Bash 문법 검사가 통과했다.
+  실제 학습·추론·데이터 재검사는 실행하지 않았고 코드/설정/commands.txt도 수정하지 않았다.
+- 미완료/다음 작업: 사용자가 입력 이름을 선택해 실행한다. 79절의 cable_angle 데이터 문제는
+  이번 폴더 이름 안내로 해결되거나 재검증된 것이 아니다.
+
+## 81. 2026-10-11 — 추가 입력 변수 없이 기존 명령 형식 유지
+
+- 최신 선호: 사용자는 HRM_INPUT 등 추가 변수 없이 기존 HRM_RUN_ID 한 줄을 유지하길 요청했다.
+  80절의 변수 추가 방식 대신 YAML 경로와 폴더 접미사를 명령에 직접 쓰도록 안내한다.
+- 예: `--config configs/train_loadcell_angle.yaml`, 학습 출력 및 예측 입력은
+  `results/train/${HRM_RUN_ID}_loadcell_angle`, 예측 출력은
+  `results/predict/${HRM_RUN_ID}_loadcell_angle`로 세 경로의 접미사를 동일하게 맞춘다.
+  학습→예측→±2 Excel 정리 연결은 기존 그대로다.
+- 수행/검증 범위: 명령 안내만 제공했다. 학습·추론·데이터 재검사 및 코드/commands.txt 수정은 없다.
+  다음 실행은 사용자가 수행하며 기존79절의 데이터 확인 사항은 이번에 재검증하지 않았다.
+
+## 82. 2026-10-11 — 학습·예측·Excel 정리 실행용 shell 추가
+
+- 요청: 사용자가 긴 터미널 명령 대신 sh 파일로 실행하길 요청했다. 실제 학습은 사용자가
+  실행하는 기존 범위를 유지하며 scripts/train_predict_organize.sh 하나를 추가했다.
+- 사용: `bash scripts/train_predict_organize.sh configs/train_loadcell_angle.yaml`.
+  터미널에서 HRM_INPUT/HRM_NAME 등을 따로 선언하지 않는다. YAML 인자 생략 시 configs/train.yaml을 쓴다.
+  YAML 파일명의 train_ 뒤 이름을 폴더 접미사로 사용하고, 한국 시각을 한 번 계산해
+  train/predict 모두 `날짜_시간_loadcell_angle` 같은 이름으로 저장한다.
+  기본 train.yaml은 기존처럼 날짜_시간만 사용한다. 실제 입력 열 선택은 YAML을 그대로 따른다.
+- 기존 hrm_python.sh로 학습한 후 predict_and_organize.sh로 test 예측 및 ±2 Excel 정리를 실행한다.
+  단계 실패 시 뒤 단계를 중단한다. 결과 보존과 새 폴더 검사는 기존 Python 구현을 따른다.
+  scripts/에는 기존3개 shell 외에 이번에 명시적으로 요청한 실행 shell1개가 추가됐다.
+- commands.txt 상단과 README에 한 줄 실행 예시를 추가했으며 기존 직접 실행 예시는 유지했다.
+  Python 학습/예측 코드, YAML, 원본 CSV 및 기존 결과는 수정하지 않았다.
+- 검증: 새 shell 및 호출하는 shell의 bash -n 통과, --help 정상 종료,
+  없는 YAML 인자에서 학습 진입 전 종료코드2 확인, git diff --check 통과.
+  실제 학습/추론/Excel 생성과 데이터 재검사는 실행하지 않았다.
+- 미완료/다음 작업: 사용자가 원하는 YAML로 실행한다. 79절 cable_angle 파일 문제는
+  이번 작업에서 다시 검사하거나 수정하지 않았다.
+
+## 83. 2026-10-11 — 네 입력 조합 실행을 commands.txt의 반복문 하나로 단순화
+
+- 최신 요청: 별도 shell을 늘리지 않고 기존 학습/예측 명령으로 cable_loadcell,
+  cable_angle, loadcell_angle, cable_loadcell_angle 네 입력을 차례로 학습·예측·정리하고 싶다고 했다.
+  실제 실행은 사용자가 하는 기존 범위를 유지한다.
+- 수행: 방금82절에서 추가한 scripts/train_predict_organize.sh를 삭제하고 commands.txt를
+  단일 반복문으로 정리했다. 중복된 단일 학습 예시 및 별도 Excel 복사 반복문을 제거했다.
+  시간은 한 번 정하고 `results/train/날짜_시간_입력명`과
+  `results/predict/날짜_시간_입력명`을 각 조합에 사용한다. 각 입력마다 train.py 성공 후
+  기존 predict_and_organize.sh로 test 예측과 ±2 Excel 정리를 수행한다.
+  정리 Excel은 각 predict 폴더 안에 생성되며 별도 공통 폴더로 복사하지 않는다.
+- 반복문 안의 입력 이름은 자동으로 순회하므로 사용자가 변수를 따로 입력할 필요가 없다.
+  괄호 안의 set -e로 실패 시 후속 단계를 중단하며 터미널 자체는 종료하지 않는다.
+  README도 추가 shell 참조를 제거하고 commands.txt의 실행 블록을 안내하도록 수정했다.
+- 검증: commands.txt의 bash -n 및 git diff --check 통과. 네 YAML 로드에 성공했고
+  입력 수는8/22/22/26이다. 이전79절의 문제 파일 summary_2_test.csv를 현재 cable_angle
+  설정의 load_trial로 다시 읽었으며, 이번에는 ID2/793행으로 통과했다.
+  이는 사용자 수정 이후 해당 파일의 재검사이며 전체67CSV 준비 검사를 다시 실행한 것은 아니다.
+- 학습/추론/Excel 생성은 실행하지 않았고 원본 CSV, YAML 및 Python 코드는 수정하지 않았다.
+  미완료/다음 작업은 사용자의 네 입력 조합 실제 실행이다. 82절 shell 안내는 이번 요청으로 대체됐다.
+
+## 84. 2026-10-11 — 학습 속도 진단 및 배치1024/2048 실제 비교
+
+- 요청: 학습 속도를 높일 수 있는지 질문했다. 코드/환경을 읽고 배치 변경이 학습 결과에 영향을
+  줄 수 있음을 설명한 뒤, 사용자는 ‘배치 크기 변경까지 허용하고 결과 비교’를 선택했다.
+  이에 전체26입력 설정의 대표4모델로 비교한다고 알리고 실제 분기 학습을 수행했다.
+- 환경/기존 구조: torch2.7.1+cu126, RTX4090(23.52GiB)을 실제 프로세스에서 확인했다.
+  기존 데이터 저장은 이미 GPU에서 원본 행을 유지하고 창을 모으는 방식이다.
+  네 입력의 전체 실행은11힘×11위치×2방식×4입력=968조합, 독립 분기1,936회 학습이다.
+  조합 간 가중치 재사용 없이 새로 학습하는 기존 정책은 변경하지 않았다.
+- 사전 합성 입력 비교: 배치2048은 MLP/CNN/Transformer 처리량에 이점이 있었으나 GRU에는
+  없었다. Fused AdamW, TF32 및 창을 unfold view로 모으는 방식도 짧게 비교했으나 대표 모델
+  전반의 뚜렷한 이점이 없어 적용하지 않았다. 합성 측정은 실제 정확도 또는 전체 실행 시간의
+  근거로 사용하지 않는다. 측정 JSON은 /tmp/hrm_speed_probe_20261011.json 및
+  /tmp/hrm_window_speed_probe_20261011.json이다.
+- 실제 비교 결과: [results/train/20261011_151107_batch_speed_compare](../results/train/20261011_151107_batch_speed_compare/).
+  주 결과는 [batch_speed_summary.csv](../results/train/20261011_151107_batch_speed_compare/batch_speed_summary.csv)(12개 비교 쌍),
+  [batch_comparison.csv](../results/train/20261011_151107_batch_speed_compare/batch_comparison.csv)(24개 실행)이다.
+  실행별 학습 이력/지표, 설정/교정/분할/scaler, validation_arrays.npz 및 benchmark_states.pt도
+  같은 폴더에 저장했다. 마지막 pt는 비교용 분기 가중치 모음이며 배포용 hrm_bundle.pt가 아니다.
+- 비교 설계: configs/train_cable_loadcell_angle.yaml, train48/test19 준비 검사를 그대로 사용했다.
+  모델은 MLP/CNN/GRU/Transformer, 각 모델에서 끝단 연속 힘/위치masked/위치class0를
+  배치1024와2048로 각각 학습했다(4×3×2=24분기). 힘은 ID 방식과 독립이므로 이번 속도 비교에서는
+  각 배치·모델당 한 번만 측정했다. 이는 기존242조합 실행을 대체하거나 가중치를 재사용하는 변경이 아니다.
+  힘 train71,007/validation17,687창, masked 위치385,160/95,169창,
+  class0 위치727,419/180,834창이다. 입력/정답/무부하 기준/분할/scaler/초기 가중치/seed,
+  학습률0.001/max_epochs60/patience10/FP32/optimizer는 고정했다.
+  train_branch 내부 validation은 원래 구현대로 각 배치 크기를 사용했다.
+  최종 지표 계산용 validation 예측 배치는 양쪽 모두1024로 맞췄다.
+
+| 모델 | 배치1024 학습합계(s) | 배치2048 학습합계(s) | 힘 XYZ RMSE1024(mN) | 힘 XYZ RMSE2048(mN) |
+|---|---:|---:|---:|---:|
+| MLP | 13.358 | 6.579 | 154.261 | 154.444 |
+| CNN | 13.525 | 7.750 | 168.925 | 171.248 |
+| GRU | 23.979 | 23.476 | 172.834 | 171.438 |
+| Transformer | 54.549 | 62.209 | 162.216 | 173.471 |
+
+- 위 시간은 각 모델의 힘+masked 위치+class0 위치 분기 학습 시간 합계이며 epoch 중 validation을
+  포함한다. 데이터 준비·별도 최종 지표 계산·파일/Excel 저장·test 예측은 포함하지 않는다.
+  12분기 합계는105.411→100.014초로 약5.1% 감소했다. 전체11모델×4입력의 단축률로 해석하지 않는다.
+  첫 epoch 제외 중앙 epoch 시간으로 MLP는약1.98–2.05배, CNN은1.53–1.65배,
+  Transformer는1.17–1.18배 빨라졌지만 GRU는약3–5% 느려졌다.
+  Transformer 위치는 조기 종료까지 masked21→28epoch, class036→51epoch로 늘어 총시간이 증가했다.
+
+| 위치 모델 | 방식 | 유부하 조건부 ±2 정확도1024(%) | 동일2048(%) |
+|---|---|---:|---:|
+| MLP | masked | 87.61 | 82.26 |
+| MLP | class0 | 83.64 | 84.75 |
+| CNN | masked | 83.32 | 84.38 |
+| CNN | class0 | 85.93 | 82.51 |
+| GRU | masked | 80.21 | 79.54 |
+| GRU | class0 | 88.04 | 83.82 |
+| Transformer | masked | 87.53 | 86.61 |
+| Transformer | class0 | 87.34 | 87.83 |
+
+- 이 표는 ID1–18 전체의 유부하 validation 조건부 거리 정확도이며 body-only test 성능이 아니다.
+  Class0 검출 누락까지 포함한 ±2 지표, 정확ID, 부하 판정 및 힘 축별 RMSE/MAE도 CSV에 따로 남겼다.
+  실제 test 예측은 실행하지 않았고 batch 선택에 test 성능을 사용하지 않았다.
+- 검증:24개 저장 validation 예측의 RMSE/MAE 또는 정확ID/조건부±2/검출포함±2를 독립 재계산해
+  CSV와 대조했다. 12쌍의 초기 가중치hash 및 학습/검증 support가 일치하고, 전체67원본 CSV의
+  실행 전후hash가 불변임을 확인했다. verification.json에 기록했다.
+- 판단: 배치2048은 일부 모델을 빠르게 하지만 ID 정확도 저하와 수렴 epoch 증가가 있어,
+  현재 전체 비교를2048로 일괄 변경하지 않는다. YAML의 batch_size1024와 기존 Python/명령은 유지했다.
+  이는 한 seed의 대표4모델/전체입력 비교이며 다른3입력·나머지7모델·여러seed에 대한 검증은 아니다.
+  후속 전체 네 입력 실행은 기존 commands.txt로 사용자가 수행한다. 이번에는 그 전체 실행을 완료했다고
+  보고하지 않으며, 별도 유지보수용 Python/shell 파일도 프로젝트에 추가하지 않았다.
+
+## 85. 2026-10-11 — 배치1024 유지, 각도/FK/estimated 끝단 자세를 공통 행으로 비교하는 설정
+
+- 요청/합의: 사용자는84절 비교 후 배치1024 유지를 선택했다. 각도 대신 끝단 위치를 입력하는
+  비교를 요청했고, 추가 확인에서 ‘XYZ + 회전 자세’와 ‘세 입력에 모두 값이 있는 공통 행’을
+  선택했다. 케이블4·로드셀4를 유지한다. 실제 전체 학습은 사용자가 실행하는 기존 범위를 따른다.
+- CSV 확인: train48/test19 모든 파일에 필요한 열이 있다. FK 입력은 `fk_tip_tf.x_m/y_m/z_m`
+  및 `fk_tip_tf.qx/qy/qz/qw`, estimated 입력은 `estimated_tip.x_m/y_m/z_m` 및
+  `estimated_tip_orientation.qx/qy/qz/qw`다. 위치는m, 회전은 quaternion 순서qx/qy/qz/qw이다.
+  `fk_tip.xyz`와 `fk_tip_tf.xyz`가 함께 숫자인707,265행은 값이 완전히 동일했다.
+  비어 있지 않은 관련 frame_id는 모두hrm_base였다. Frame/matched/시간 열을 학습 입력이나
+  추가 행 선택 조건으로 사용하지 않는다. FK/estimated를 생성한 상위 코드의 계산 방식은
+  이 저장소에서 확인하지 못했으므로 commanded/unloaded/observed 형상이라고 단정하지 않는다.
+- 회전 열의 결측 영향: 각도 기준 X/Y 유효 행은 train911,037/test28,336행이었다.
+  각도26 + FK 자세7 + estimated 자세7의40개 비교 열과 정답이 모두 숫자인 행은
+  train661,565/test13,830행이다. Quaternion 자체의 유효 행에서0 norm은 없고
+  최대 norm 오차는약8.25e-10이었다. 인접 유효 quaternion 내적이 음수인 경우는FK13/estimated12개로,
+  부호 또는 큰 회전 차이가 입력에 영향을 줄 가능성을 기록한다. 부호 통일·보간·회전 표현 변경은 하지 않았다.
+- 수행: 다음 YAML3개를 추가했다. 기존 train.yaml/네 입력 조합 YAML은 수정하지 않았다.
+
+| 설정 파일(configs/) | 실제 입력 | 입력 수 |
+|---|---|---:|
+| train_cable_loadcell_angle_common.yaml | 케이블4 + 로드셀4 + 상대각18 | 26 |
+| train_cable_loadcell_fk_pose_common.yaml | 케이블4 + 로드셀4 + FK XYZ/quaternion7 | 15 |
+| train_cable_loadcell_estimated_pose_common.yaml | 케이블4 + 로드셀4 + estimated XYZ/quaternion7 | 15 |
+
+- `data_utils.py`에 선택적 `comparison_columns`만 추가했다. 세 YAML에 같은40열을 지정하여
+  공통 숫자 행을 먼저 남긴 후 기존80/20분할과30행 창을 적용한다. 비교 열은 입력을 확장하지 않고,
+  모델에는 각 YAML의 `input_columns`만 전달한다. 정답이 있는 예측 CSV에도 같은 필터를 적용하며
+  추가 열이 없으면 명확히 실패한다. 정답 열이 없거나 힘 정답 전체가 비어 있는 입력 전용 추론은
+  실제 모델 입력 열만 필요하다. 비교 필터 적용 여부/비숫자 행 수는 trial/data_audit에 기록한다.
+  기존 comparison_columns 없는 설정과 과거 bundle의 기본 numeric_compact 처리는 유지한다.
+- 공통 행 부족으로 아래 파일은 세 비교에서 동일하게 제외한다. 원본은 삭제하거나 수정하지 않는다.
+  기존 exact-hash 제외 기능에 파일hash와 사유를 넣었으며 과거 제외 규칙도 유지했다.
+  Train은 뒤20%에서도30행 창이 필요하므로 단순히 전체30행 이상인 것만으로는 충분하지 않다.
+
+| 파일 | 공통 행 | 제외 사유 |
+|---|---:|---|
+| train/summary_1.csv | 145 | 80/20 분할 후 validation 창 부족 |
+| train/summary_6.csv | 135 | 동일 |
+| train/summary_7-2.csv | 107 | 동일 |
+| train/summary_7.csv | 125 | 동일 |
+| train/summary_8-2.csv | 110 | 동일 |
+| train/summary_8.csv | 104 | 동일 |
+| train/summary_9.csv | 139 | 동일 |
+| test/summary_6_test.csv | 12 | 전체30행 미만 |
+| test/summary_13_test.csv | 5 | 전체30행 미만 |
+| test/summary_17_test.csv | 8 | 전체30행 미만 |
+
+- 최종 비교 대상: train41파일의 공통660,700행을 학습528,546/validation132,154행으로 나눈다.
+  각 역할의 창 수는 학습527,357/validation130,965개다. Test16파일은13,805행/13,341창이다.
+  ID1–18 모두 학습·validation 유부하 창이 남아 있다. Tip 힘 창은 학습63,264,
+  validation15,751, test2,693개다. Force_scope:tip과 class0/masked, 수동 무부하 경계,
+  batch_size1024/window_samples30/max_epochs60 및 독립 모델 학습 방식은 그대로다.
+- Test 위치 해석: ID6/13/17은 평가 불가이며 ID9는3창 모두 무부하라 유부하 위치 평가가 불가능하다.
+  ID1/7/8의 유부하 test 창도 각각22/15/7개뿐이다. 전체18개 ID에 대한 충분한 검증이라고 주장하지 않는다.
+  결측 제거 후 연결하는 기존 정책이므로 이력30행의 실제 시간 길이는 기존 전체 행 실험과 달라진다.
+  공정한 비교 기준은 새 angle_common이며 기존 전체 행 angle 결과와 입력 효과만의 차이라고
+  해석하지 않는다. 끝단 자세가 내부 형상 정보를 줄여 body 위치 성능을 낮출 수도 있으며 결과로 판단한다.
+- 검증 완료: 세 YAML 모두 실제67원본을 대상으로 행 수를 조사하고 선택된41/16파일을 prepare_data로
+  준비했다. 세 설정의 파일/hash/source_rows/힘 정답/부하 라벨/분할/창 끝점이 정확히 동일하다.
+  각 설정의 test를 예측용 loader로 다시 읽어 학습 당시 선택과 입력값이 같음을 확인했다.
+  전체67CSV의 검사 전후hash는 불변이다. 기존 tests/test_pipeline.py에 공통 행·분할·입력 차원,
+  입력 전용 추론, 비교 열 누락/설정 오류 검사를 추가했고 전체42개 검사가 통과했다.
+  이 검사는 실제 optimizer 학습 없이 임시 데이터/모의 학습을 사용한다.
+  임시 상세 근거는 /tmp/hrm_pose_common_source_audit_20261011.json 및
+  /tmp/hrm_pose_common_preflight_20261011.json이다. 실제 실행 시 data_audit.json에도 파일 제외 사유가 남는다.
+- 실행: commands.txt의 기존4입력 반복문은 유지하고 바로 위에 아래 대체 줄을 주석으로 추가했다.
+  이 줄로 for문만 교체하면 같은 시각/서로 다른 입력 접미사로 학습→test→±2 Excel 정리를 수행한다.
+
+```bash
+for HRM_INPUT in cable_loadcell_angle_common cable_loadcell_fk_pose_common cable_loadcell_estimated_pose_common; do
+```
+
+- 새 Python/shell/Markdown 파일은 추가하지 않았다. 모델 구현과 Excel 출력 구조도 변경하지 않았다.
+  Bash 명령 문법과 git diff 공백 검사를 통과했다. 실제 전체 학습·test 신경망 추론·성능 비교는
+  이번에 실행하지 않았으므로 새 RMSE/MAE/ID 정확도는 없다. 다음 작업은 사용자의3입력 실행 후
+  동일 공통 test에서 축별/전체 힘 RMSE·MAE, ID 정확/±2/±3 및 검출 포함 성능을 비교하는 것이다.
+
+## 86. 2026-10-11 — 공통 행 부족·평가 불가·유부하 평가 없음의 의미 재확인
+
+- 요청: 사용자가85절의 ‘공통 행 부족’, ‘평가 불가’, ‘유부하 평가 행 없음’ 표현의 의미를 질문했다.
+  기존 기록/코드/설정을 읽고 test ID6/13/17/9 및 train summary_1.csv를 읽기 전용으로 재확인했다.
+- 공통 행은 서로 다른 CSV의 같은 행 번호나 값이 같은 행을 뜻하지 않는다. 각 CSV의 한 행에
+  케이블·로드셀·각도·FK XYZ/quaternion·estimated XYZ/quaternion 및 정답이 모두 숫자인 행이다.
+  한쪽 회전 열만 비어 있어도 세 실험을 동일 표본으로 비교하기 위해 이번 공통 행 실험에서는 제외한다.
+  예: ID6 test는 각도 입력/정답 유효729행, FK 자세 입력/정답99행, estimated 자세110행이지만
+  세 입력/정답의 교집합은12행이다. FK 회전1238/1337행, estimated 회전1227/1337행이 빈칸이었다.
+- Test 파일별 원본/각도 기준 유효/공통 행: ID6=1337/729/12, ID13=556/556/5,
+  ID17=2241/627/8, ID9=1807/1807/32. 회전 열의 빈칸이 주요 감소 원인이다.
+  왜 상위 기록 과정에서 회전 열에 빈칸이 생겼는지는 확인하지 않았으며 수집 오류라고 단정하지 않는다.
+- 현재 loader는 window_samples30에 따라 남은30행으로 첫 예측 창을 만든다. 공통12/5/8행인
+  test ID6/13/17은 이 비교 조건에서 창0개이므로 평가 불가다. 모델 실패율100%를 의미하지 않는다.
+  다른 학습 파일이 남아 있으므로 이 ID들의 학습 클래스는 유지한다.
+- ID9 표현을 구체화한다: 원본의 각도/정답 유효1807행 중771행이 현재 YAML 기준 유부하이며,
+  공통32행 자체에도 유부하18행이 있다. 다만 입력 이력을 확보한 후 평가하는 끝점은 공통 행의
+  30/31/32번째3개뿐이다. 해당 끝점3개가 모두 무부하라 ‘유부하 ID 정확도’를 계산할 분모가0이다.
+  앞29행의 유부하 값은 이력 구간에 존재하므로 ‘ID9 기록 전체에 유부하가 없다’고 해석하면 틀리다.
+  평가 끝점 원본0-based source_row는1471/1556/1571이고 힘[mN]은 각각
+  [-46.79655017,22.36428592,82.85641105], [0.83010223,-79.49467308,-3.67313047],
+  [-111.7906105,60.05377168,-11.71043987]이다. 모두 수동 범위Fx±134.326/Fy±126.814/Fz±192.670 안이다.
+  유부하 여부는 GT 힘/YAML 판정이며 모델 예측 판정이 아니다.
+- Train 제외도 현재 분할/창 설정에 따른 제약이다. 예: summary_1.csv의 공통145행은
+  train116/validation29행으로 나뉘어 validation30행 창을 만들지 못한다.
+  파일 자체가 학습에 절대 사용할 수 없다는 뜻은 아니다.85절에서는 기존80/20·30행 설정을 유지하고
+  세 비교에서 동일한 파일을 제외했다. 원본 및 기존 네 입력 실험 설정은 그대로다.
+- 수행/검증: 위5CSV 숫자/빈칸/부하/끝점 수를 재계산했고85절의 공통 행 및 창 수와 일치했다.
+  이번에는 코드·YAML·원본을 수정하거나 실제 학습·예측을 실행하지 않았다. 다음 변경은 별도 요청에 따른다.
+
+## 87. 2026-10-11 — 현재 validation 비율과 test의 구별 확인
+
+- 요청: 현재 validation을8:2 또는9:1로 나누는지 확인했다.
+- 검증: 현재8개 train YAML 모두 validation_fraction0.2/window_samples30이며,
+  prepare_data는 각 train CSV의 결측 제거 후 행 앞80%/뒤20%를 학습/validation으로 나눈다.
+  각 역할 안에서 별도로30행 창을 만든다. test 폴더 파일은 이8:2분할 대상이 아니다.
+- 설명: 공통145행인 train 파일은116/29로 분할되어 validation 창이 부족하다.
+  공통32행인 ID9 test 파일은 분할 없이 사용하며30행 이력을 확보한 뒤3시점을 평가한다.
+  9:1로 바꾸면 validation 행이 더 줄어들므로 해당 부족 문제의 해결책이 되지 않는다.
+- 이번에는 설정/코드/데이터 변경 및 학습/예측 실행 없이 확인·설명·기록만 수행했다.
+
+## 88. 2026-10-11 — 30행 이력과 빈칸 행 수동 삭제 필요 여부
+
+- 요청:30행 묶음이 시계열 입력 때문인지, 해당 행을 직접 삭제해 저장하면 되는지 질문했다.
+- 설명:window_samples30은 현재 행을 포함한 입력 이력이다.1~30행 다음은2~31행으로
+  한 행씩 이동하며 서로 겹치지 않는30행 단위로 잘라 버리는 방식이 아니다.
+  빈칸 행을 뜻한다면 이미 숫자가 아닌 선택 열의 행을 제외하고 남은 행을 연결하므로 수동 삭제는 필요 없다.
+  공통 행 부족은 해당 제거 후 남은 수가 적다는 의미이며 같은 빈칸 행을 미리 삭제해도 늘어나지 않는다.
+  정답 있는 CSV에 이번 공통 행 비교를 적용하면 각도/FK/estimated 비교 열의 빈칸도 함께 제외한다.
+- 수행:최신 기록과 창 끝점 생성 코드를 확인했다. 원본 삭제를 요청하거나 실행하지 않았으며
+  코드/설정/CSV 변경 및 학습/예측 실행도 없다. 이력 길이 등의 변경은 별도 합의 후 진행한다.
+
+## 89. 2026-10-11 — angle_common 의미와 자세 입력 한 종류 사용 의도 확인
+
+- 요청: 빈칸 행이 내부에서 제외되는지 재확인하고 angle_common의 의미를 질문했다.
+  사용자는 자세 입력으로 FK/estimated 중 하나만 사용할 의도를 밝혔다.
+- 설명: angle_common의 실제 입력은 기존 케이블4+로드셀4+각도18이며,85절의 세 입력 비교와
+  같은 공통 행을 쓰도록 만든 기준 설정이다. FK/estimated 값을 신경망 입력에 함께 넣지 않는다.
+  현재 common YAML3개는 comparison_columns에서 세 입력을 모두 확인하므로 FK 설정도
+  estimated 회전 결측의 영향을 받는다. 자세 한 종류만 비교할 경우 각도와 선택한 자세의
+  공통 행만 확인하도록 줄일 수 있으며, 기존 제외 파일/창 수 역시 다시 계산해야 한다.
+- 확인 요청: 각도와 비교할 자세를 FK XYZ+회전 또는 estimated XYZ+회전 중 선택하도록 질문했다.
+  이 시점에는 답변 대기 중이며 공통 행 정책·YAML·제외 목록을 임의 변경하지 않았다.
+- 수행: 최신 기록과 실제 YAML/명령을 확인하고 의미를 설명했다. 학습·예측 및 CSV 수정은 없다.
+  다음 작업은 선택된 자세에 맞춘 최소 설정 정리와 데이터 준비 재확인이다.
+
+## 90. 2026-10-11 — cable_loadcell_angle과 angle_common의 직접 비교
+
+- 요청 정정: 사용자는 자세 소스 선택이 아니라 기존 cable_loadcell_angle YAML과
+  cable_loadcell_angle_common YAML의 차이를 질문했다. 추가 선택을 다시 요구하지 않는다.
+- 검증: 두 YAML의 input_columns26개는 순서까지 동일하다. 다른 키는 comparison_columns,
+  excluded_files_by_sha256, test_evaluation_scope뿐이며 모델/학습 파라미터는 같다.
+- 설명: 기존 설정은 선택 입력/정답이 숫자인 행을 사용한다. common 설정은 이 조건에
+  FK/estimated 자세14열도 모두 숫자인 조건을 추가하며, 짧아진 파일의 제외 목록도 포함한다.
+  예를 들어 각도/케이블/로드셀/정답은 정상이고 FK 회전만 빈칸인 행은 기존에서 사용하지만
+  common에서는 제외한다. FK/estimated 값은 angle_common 모델의 입력에는 들어가지 않는다.
+- 이번에는 파일 비교와 설명/기록만 수행했다. 설정 변경·데이터 수정·학습·예측은 하지 않았다.
+
+## 91. 2026-10-11 — common 파일명과 실제 공통 행 설정의 구별
+
+- 요청: 데이터가 많으므로 결측 영향이 작을 것 같다고 하면서도 common 비교 필요성에 동의했고,
+  common이라고 쓰지 않아도 코드가 정상 동작하는지 질문했다.
+- 확인: train.py는 --config로 지정한 YAML을 읽으며 파일명의 common 유무로 동작을 바꾸지 않는다.
+  공통 행 선택은 data_utils.py의 comparison_columns 내용으로 결정한다. 이름에서 common만 빼고
+  내용을 유지하면 공통 행 비교가 유지되며 명령의 YAML 경로를 실제 이름에 맞춰야 한다.
+  기존 일반 YAML을 그대로 사용하면 선택 X/Y의 숫자 행만 쓰는 정상 학습/예측이 실행되지만,
+  입력 구성별 사용 행이 달라질 수 있어 공통 표본 비교와는 조건이 다르다.
+- 설명 범위: 성능 차이가 없다고 단정하지 않는다.85절 측정에서 전체 각도 유효 행 대비 최종 공통
+  행은 train911,037→660,700/test28,336→13,805로 줄었고 일부 ID 평가 범위도 달라졌다.
+- 이번에는 파일명/설정 처리 확인과 설명/기록만 수행했다. 파일 이름/설정 변경 및 학습 실행은 없다.
+
+## 92. 2026-10-11 — 사용자가 사용할 predict 결과와 test 데이터의 관계
+
+- 요청: 사용자는 test가 아니라 predict 결과만 최종 활용할 것이라고 말했다.
+- 확인: 현재 commands.txt에서 호출하는 predict_and_organize.sh는 predict.py --train-dir로
+  학습 bundle에 기록된 datasets/test 파일들을 예측하고 results/predict의 predictions.xlsx를 만든다.
+  그 Excel을 organize_results.py가 재정리한다. 이 실행 흐름에서 test 결과와 predict 결과는
+  같은 평가를 가리킨다. Test는 입력 데이터의 역할이며 predict는 예측 실행/결과 폴더 이름이다.
+- 설명: validation.xlsx는 datasets/train의 뒤20% 검증 결과로 별개다. 앞서 test 공통 행 감소는
+  사용자가 최종 사용할 predict Excel의 평가 대상 감소를 뜻한다. common 설정으로 새로 학습한
+  bundle이면 저장된 comparison_columns가 정답 있는 test 예측에도 적용된다. 현재 YAML을
+  바꾸는 것만으로 과거 bundle의 예측 설정이 바뀌지는 않는다.
+- 이번에는 흐름 확인과 설명/기록만 수행했다. 학습/예측 실행과 코드/설정 변경은 없다.
+
+## 93. 2026-10-11 — 끝단 자세 빈칸의 파일·열별 전수 확인
+
+- 요청: 어떤 CSV에서 자세가 비어 있는지 확인해 달라고 했다. train48/test19 전체67파일의
+  FK 및 estimated 위치XYZ/회전quaternion을 직접 읽고 빈 문자열(공백 포함) 행을 집계했다.
+  그룹의 열 하나라도 빈칸이면 해당 그룹 빈칸 행1개로 센다.0은 유효 숫자다.
+- 대상 열: FK는 fk_tip_tf.x_m/y_m/z_m 및 fk_tip_tf.qx/qy/qz/qw이고,
+  estimated는 estimated_tip.x_m/y_m/z_m 및 estimated_tip_orientation.qx/qy/qz/qw다.
+  fk_tip_tf 위치 열과 별도의 fk_tip 위치 열을 혼동하지 않는다. 이번 집계는 현재 pose YAML의 실제 입력 열 기준이다.
+- 전수 결과: train은FK 위치/회전19파일, estimated 위치18파일/회전21파일에 빈칸이 있다.
+  Test는FK 위치/회전10파일, estimated 위치8파일/회전10파일에 빈칸이 있다.
+  빈칸 이외의 비수치·NaN/Inf 행은 검사한14열에서 발견되지 않았다.
+- 회전 빈칸 행(전체 원본 행 기준이며 선택 X/Y 조건 적용 전):
+
+| test 파일 | 전체 행 | estimated 회전 빈칸 | FK 회전 빈칸 |
+|---|---:|---:|---:|
+| summary_1_test.csv | 1,337 | 1,134 | 1,043 |
+| summary_6_test.csv | 1,337 | 1,227 | 1,238 |
+| summary_7_test.csv | 2,241 | 2,027 | 1,841 |
+| summary_8_test.csv | 2,241 | 1,951 | 1,976 |
+| summary_9_test.csv | 1,807 | 1,614 | 1,514 |
+| summary_12_test.csv | 2,241 | 1,682 | 1,682 |
+| summary_13_test.csv | 556 | 501 | 497 |
+| summary_16_test.csv | 2,241 | 1,204 | 1,204 |
+| summary_17_test.csv | 2,241 | 2,162 | 2,141 |
+| summary_18_test.csv | 5,770 | 4,937 | 4,804 |
+
+- Estimated 회전 빈칸이 있는 train 파일 전체 목록:
+  - summary_1.csv: 2,839/3,365행.
+  - summary_10.csv: 5,379/6,234행.
+  - summary_11.csv: 5,297/6,263행.
+  - summary_12-2.csv: 37/3,884행.
+  - summary_12.csv: 6,302/7,403행.
+  - summary_13-2.csv: 3,184/3,923행.
+  - summary_13.csv: 30/7,437행.
+  - summary_14.csv: 6,196/7,446행.
+  - summary_17-2.csv: 3,942/4,548행.
+  - summary_18.csv: 8,551/9,949행.
+  - summary_6.csv: 2,760/3,298행.
+  - summary_7-2.csv: 4,548/5,226행.
+  - summary_7.csv: 3,532/4,158행.
+  - summary_8-2.csv: 4,946/5,630행.
+  - summary_8.csv: 4,174/4,798행.
+  - summary_9-2.csv: 5,303/6,217행.
+  - summary_9.csv: 4,186/4,898행.
+  - summary_static_pan_-30to+30_tilt_-30to+30_interval-15deg_seg-id-15.csv: 45,164/52,041행.
+  - summary_static_pan_-30to+30_tilt_-30to+30_interval-15deg_seg-id-16.csv: 46,224/53,021행.
+  - summary_static_pan_-30to+30_tilt_-30to+30_interval-15deg_seg-id-17.csv: 57,895/66,322행.
+  - summary_static_pan_-30to+30_tilt_-30to+30_interval-15deg_seg-id-18.csv: 2/72,089행.
+- 위 train 목록 중 summary_13.csv와 static ID18은 FK 회전 빈칸0행이며,
+  나머지19파일에는FK 회전도 빈칸이 있다. 예: static ID15/16/17의 estimated 회전 빈칸은
+  각각45,164/46,224/57,895행이다.
+- 구체적 예: test/summary_13_test.csv는 estimated XYZ 빈칸0행이지만 회전501/556행이 비어 있다.
+  따라서 x_m만 보면 값이 있어도 XYZ+회전 입력 조건에서는 행이 제외된다.
+  수집 단계에서 회전이 비어 있는 원인은 이번 집계로 단정하지 않는다.
+- 전체67파일 결과는 [pose_missing_by_file.csv](../results/analysis/20261011_161606_pose_missing/pose_missing_by_file.csv) 한 개에 저장했다.
+  위치/회전 빈칸 행 수, 회전 빈칸 비율, 첫 빈칸 Excel행(헤더가1행), 원본hash를 포함한다.
+  저장CSV67행과 집계 범위를 확인했고 전체 원본67파일의 분석 전후hash가 불변임을 검증했다.
+- 수행 범위: 원본 읽기·집계CSV1개 생성·문서 기록만 수행했다. 설정/학습/추론/원본수정은 없다.
+  다음 입력 열/행 정책 변경은 사용자 요청에 따른다.
+
+## 94. 2026-10-11 — 최종 힘 test 파일 지정과 학습 자세 결측 규모 확인
+
+- 요청: 사용자는 최종 힘 추정 데이터 정리를 summary_18_test_2.csv 기준으로 하겠다고 지정했고,
+  학습 데이터에도 자세 빈칸이 많았는지 질문했다. ID 평가 대상 축소까지 요청한 것으로 해석하지 않는다.
+- 수행/검증:93절 파일별 집계를 다시 읽고 train48파일 및 지정한 test1파일의 현재hash가
+  집계 당시와 같음을 확인했다. Train 원본 총912,387행에서 estimated 위치XYZ 빈칸은239행(0.0262%),
+  estimated 회전 빈칸은220,491행(24.1664%,21파일), FK tf 위치/회전 빈칸은 각각221,032행
+  (24.2257%,19파일)이다. 한 그룹의 열 중 하나라도 빈칸인 행을1개로 센다.
+- Tip 학습 파일 상태:
+
+| 파일 | 전체 행 | estimated XYZ 빈칸 | estimated 회전 빈칸 | FK tf 회전 빈칸 |
+|---|---:|---:|---:|---:|
+| summary_18.csv | 9,949 | 9 | 8,551 | 8,378 |
+| summary_18-2.csv | 6,905 | 0 | 0 | 0 |
+| static ID18 | 72,089 | 0 | 2 | 0 |
+
+- Body의 static ID15/16/17도 estimated 회전 빈칸이 각각45,164/52,041,
+  46,224/53,021,57,895/66,322행으로 많다. 기존 케이블/로드셀/각도 학습은 이 자세 열을
+  입력/비교 조건에 넣지 않으므로 회전 빈칸 자체 때문에 이 행들을 제외하지 않는다.
+  이번 수치는 새 자세 입력/common 실험에서 추가로 고려할 데이터 상태다.
+- 지정 test인 summary_18_test_2.csv는2,601행이며 확인한 estimated/FK tf XYZ·회전14열에
+  빈칸이 없다. 최종 힘 GT/예측 및 RMSE·MAE 보고는 이 파일을 대상으로 정리하는 사용자 선호를 기록했다.
+- 이번에는 통계 확인/범위 기록만 수행했다. 기존 predict의 파일 선택이나 평가 코드는 바꾸지 않았고,
+  새 학습·추론·Excel 재정리는 실행하지 않았다. 다음 결과 정리 시 힘 지표/표에 해당 파일 범위를 명시한다.
+
+## 95. 2026-10-11 — 일반4입력과 각도/estimated 공통 행2입력 비교 확정
+
+- 최신 요청: common 없는 기존 케이블/로드셀/각도 조합은 끝단 자세 결측과 무관하게 비교하고,
+  common에서는 케이블·로드셀을 고정한 상태로 각도와 tip 자세를 비교하기로 했다.
+  자세 종류를 확인한 결과 사용자는 ‘Estimated 끝단 XYZ + 회전’을 선택했다.
+- 일반 비교: cable_loadcell / cable_angle / loadcell_angle / cable_loadcell_angle의 기존4 YAML은
+  그대로다. 각 설정에서 선택한 X/Y의 빈칸·비수치·NaN/Inf만 제외하며 자세 열의 빈칸은 무관하다.
+  실제4설정에 comparison_columns/자세 입력이 없음을 확인했고, 자세 빈칸이 많은 test ID13도
+  기존4설정에서 각각556행을 유지함을 확인했다. 빈칸 힘 정답을 일반 실험에서 허용하는 변경은 아니다.
+- Common 비교: train_cable_loadcell_angle_common.yaml(26입력)과
+  train_cable_loadcell_estimated_pose_common.yaml(15입력) 두 개만 사용한다.
+  input_columns는 각각 케이블4+로드셀4+각도18, 케이블4+로드셀4+estimated XYZ3+quaternion4다.
+  comparison_columns는 두 설정에서 동일한33열(케이블4+로드셀4+각도18+estimated 자세7)로 맞췄다.
+  FK 열은 검사하지 않으며 FK 모델용 YAML은 삭제했다. 비교 열은 NN 입력을 확장하지 않는다.
+- 전체67CSV에서 새 공통 행을 다시 계산하니 train690,603행/test15,405행이다.
+  모든48train파일은80/20 분할 후 양쪽30행 창을 만들 수 있고, 모든19test파일도30행 이상이다.
+  따라서85절에서 추가했던 train7/test3의 exact-hash 파일 제외 목록을 두 YAML에서 제거했다.
+  data_utils의 기본 과거 계약은 그대로 유지되며 현재 데이터에는 해당 과거 제외hash가 없어
+  이번 두 비교에서 제외되는 파일은0개다.85절의41/16파일 수 및 ID6/13/17 평가 불가 설명은
+  FK까지 포함했던 당시 조건에 대한 이력이며 최신 common2설정에는 적용되지 않는다.
+- 준비 검사 결과(두 설정 동일): train48파일551,073창, validation48파일136,746창,
+  test19파일14,854창이다. Tip 힘 창은train64,165/validation15,977/test3,345개다.
+  Test 모든 ID1–18에 유부하 평가 창이 있으며, 이전에 부족했던 ID6/13/17의 창은 각각81/26/50개,
+  그중 유부하는47/10/17개다. ID9도164창 중83개가 유부하다. 표본이 적은 ID는 support와 함께 해석한다.
+- 94절 지정한 최종 힘 보고 대상 summary_18_test_2.csv는2,601행/2,572평가 창이며
+  유부하930창이다. 이 요청은 이후 힘 결과 정리 범위로 유지한다. 현재 predict/organize 자체는
+  기존처럼 저장된 전체test를 처리하며 선택 파일만으로 힘 표를 자동 제한하는 변경은 이번에 하지 않았다.
+- Commands/문서: commands.txt의 단일 반복문을 일반4종 → common2종 순서로 수정했다.
+  같은 날짜·시간 뒤에 입력명을 붙이고 각 설정마다 학습→predict→±2 organize를 실행한다.
+  새로운 shell/Python 파일은 추가하지 않았으며 README에서도 두 비교 그룹과 최신2설정을 설명했다.
+- 검증: 두 common 설정을 prepare_data로 각각 준비하고 파일hash/source_rows/힘 GT/부하 라벨/
+  역할별 분할/창 끝점의 일치를 확인했다. 두 설정의19test파일을 예측용 loader로 다시 읽어
+  같은 행/입력이 재현됨을 확인했다. 전체67CSV hash는 조사 전후 불변이다.
+  두 설정의 차이는 실제입력뿐이며, 일반 baseline과 비교해 변경된 키도 입력·공통 행 조건·범위 설명·
+  config 경로뿐이다. batch1024/window30/80:20분할/모델/loss/무부하 경계는 그대로다.
+  commands.txt의 bash -n과 git diff --check를 통과했다. Python 핵심 변경이 없어 전체 unit test는
+  반복하지 않았으며 실제 데이터 준비 검사로 이번 YAML 변경을 검증했다.
+- 임시 상세 근거: /tmp/hrm_estimated_common_source_audit_20261011.json 및
+  /tmp/hrm_estimated_common_preflight_20261011.json. 원본 CSV/기존 결과/일반4 YAML은 수정하지 않았다.
+  실제 학습·test 신경망 추론·새 성능 지표·Excel 생성은 수행하지 않았다.
+  다음 작업은 사용자의 commands.txt 실행 후 두 비교 그룹별 결과 해석 및 지정 tip test 힘 결과 정리다.
+
+## 96. 2026-10-11 — comparison_columns의 공통 행 조건 재확인
+
+- 요청: comparison_columns를 통해 각도와 estimated 자세가 모두 있을 때만 학습하는지 확인했다.
+- 확인: common 두 YAML은 동일33열(케이블4+로드셀4+각도18+estimated XYZ3+회전4)을
+  comparison_columns로 지정한다. 모든 비교 열과 정답이 유효한 숫자인 행만 학습/검증에 사용한다.
+  실제 모델 입력은 input_columns에 따라 각도 모델26개/estimated 모델15개로 서로 다르다.
+  정답 있는 현재test 예측에도 같은 공통 행 조건이 적용된다. FK 열은 검사하지 않는다.
+  일반4조합 YAML에는 이 추가 공통 행 조건이 없다.
+- 수행: 최신 기록과 두 YAML의 동일 비교 열/실제 입력 수를 확인하고 설명했다.
+  설정·코드·데이터 변경 또는 학습·추론 실행은 없다.
+
+## 97. 2026-10-11 — 실제 제어 프로젝트에 전달할 추론·히트맵·body 모드 요구사항
+
+요청: 학습 모델을 제어 프로젝트에서 사용하여 ID/힘을 추론하고, 예측 주변id_tol 히트맵,
+무부하 시 제어용ID18/tip 제어, 선택 가능한 body contact ON/OFF를 구현할 수 있도록 전달문을 작성한다.
+아래는 전달용 요구사항 초안이다. 본 저장소나 다른 제어 프로젝트에서 구현·실행한 결과가 아니다.
+최신 ON/OFF 요청은64절의 과거 상시 자동 구분만 사용한다는 방향보다 우선한다.
+
+**전달용: 목적과 모델 범위**
+
+단일 위치 접촉만 대상으로 하며 동시 다중 접촉은 이번 범위에서 제외한다.
+기존 hrm_bundle.pt의 독립 force_net/location_net을 사용한다. 별도 무부하/tip/body3분류
+신경망을 추가하거나 재학습하지 않는다. 현재 force_scope:tip 모델은ID18 전용 연속XYZ 힘 회귀이고,
+location_net은class0(ID0+active_ids) 또는masked(active_ids)의 위치 분류다.
+Body 모드를 켜도 현재 힘 모델이body 힘 추정 모델로 바뀌는 것은 아니다.
+사용할 실제 checkpoint/모델 조합은 별도로 지정한다.
+
+**전달용: 입력과 추론 복원**
+
+- bundle의 feature_columns/input_columns 순서와 window_samples를 따른다. 현재 설정은30행 이력이다.
+  Force/ID 정답과 timestamp는 신경망 입력에 넣지 않는다. Comparison_columns는 오프라인 비교의
+  공통 행 선택 조건이므로 실시간 센서 입력에 미사용 angle/pose를 추가로 요구하는 조건이 아니다.
+- 힘과 위치 분기의 scaler는 서로 다를 수 있다. 원본 입력 이력을 같은 것으로 사용하더라도
+  각 branch의 x_mean/x_std로 따로 정규화해서 각 network에 전달한다. 동일 정규화 텐서를
+  HRMEstimator.forward에 넣는 것만으로 기존 predict.py의 추론이 그대로 재현되는 것은 아니다.
+- 힘 출력은 저장된 force scaler로 역정규화한다. 물리 출력 순서는Fx/Fy/Fz, 단위N,
+  기본 좌표계hrm_base이다. 화면에서mN을 쓰면1000을 곱한다. 기존 합의에 따라 제어 연결에서
+  역정규화XYZ에-1을 한 번만 적용하며 제어 프로젝트가 이미 반전한다면 중복 반전하지 않는다.
+- 위치 logits에softmax를 적용하고 bundle의 mode/active_ids 순서대로 확률을 매핑한다.
+  Class0의p0는 무부하 클래스 확률이고 masked에는p0가 없다. 누락/준비 미완료를 무부하로
+  간주하지 않는다. 유효 입력 이력이 쌓이기 전에는 추론 준비 미완료를 명시한다.
+- 이 저장소에서 확인할 구현은 train.restore_bundle, train.predict_branch,
+  train.WindowStore, data_utils.location_predictions, predict.predict_trials이다.
+  파일 기반 오프라인predict.py 전체를 제어 주기마다 실행하는 방식으로 연결하지 않는다.
+
+**전달용: 원래 예측과 제어용ID의 구별**
+
+ID 추론은 body 모드ON/OFF와 관계없이 계속한다. 원래 ID별 확률과 원래 예측ID를 보존하고,
+제어에 사용할ID를 별도로 결정한다. 무부하로 판정되면 제어용ID를18로 지정하여 tip 운용을 허용한다.
+이 기본값은 실제tip 접촉을 검출했다는 뜻이 아니다. p18을1로 덮어쓰거나 다른 확률을 삭제하지 않는다.
+힘은 무부하에서도 연속 추정값을 사용하며 무부하라는 이유만으로 추정XYZ를0으로 덮어쓰지 않는다.
+유부하일 때 최종 위치가18이면tip,1~17이면body로 해석한다.
+
+실시간 무부하 판정원은 구현 전에 확정해야 한다. Class0는 기존 전체 클래스argmax가0인지를
+판정 후보로 쓸 수 있다. Masked는 자체 부하 검출이 없어 별도의 실시간 판정원이 필요하다.
+학습 YAML의ft_sensor_calibration은 실측F/T 정답에 적용하는 라벨 기준이다. 운용에서
+F/T 센서를 쓰지 않는다면 이GT 기준을 그대로 읽어 부하를 알 수는 없다. Tip 전용 힘모델의
+출력을body 부하 크기로 검증 없이 간주하지 않는다. 이전150/200mN 및 저확률ID18 기본값의
+신호/임계값은 아직 확정되지 않았으므로 제어 구현에서 임의로 고정하지 않는다.
+
+**전달용: body contact 모드와 힘 사용 조건**
+
+사용자가 body_contact_enabled를ON/OFF로 선택할 수 있도록 한다. 다음 표의 힘 사용은
+실제 제어/공식tip 힘 출력에 사용하는 조건이며, 내부 force_net을 항상 계산할지와는 구별한다.
+OFF에서 ‘ID18일 때만 힘 추정’은 무부하를18로 처리한 뒤의 제어용ID 기준으로 해석한 초안이다.
+
+| 모드 | 판정 | 제어용ID와 표시/대응 | Tip 힘의 제어 사용 |
+|---|---|---|---|
+| OFF | 무부하 | 제어용ID18, 무부하 표시 유지 | 사용 가능 |
+| OFF | 유부하·ID18 | 제어용ID18, tip 운용 | 사용 가능 |
+| OFF | 유부하·ID1~17 | 원래ID 유지, body 전용 대응 비활성 | 사용하지 않음 |
+| ON | 무부하 | 제어용ID18, 무부하 표시 유지 | 사용 가능 |
+| ON | 유부하·ID18 | 제어용ID18, tip 운용 | 사용 가능 |
+| ON | 유부하·ID1~17 | body 접촉 위치/확률 표시, body 대응 경로 활성 | 사용하지 않음 |
+
+OFF를 모든 상황에서ID18로 강제하는 것으로 해석하지 않는다. 사용자는ID18일 때만 힘을
+추정한다고 요청했다. Body로 판정된 경우 현재ID18 모델의 출력을body 힘이나 검증된tip 힘으로
+사용하지 않는다. Body일 때 정지/감속/알림 등 구체적 동작은 이 문서에서 임의로 정하지 않는다.
+제어 사용을 금지한 상태에서 이전 힘값을 계속 사용하거나0N 측정값으로 바꾸는 정책도 확정되지 않았다.
+
+**전달용: id_tol과 히트맵**
+
+실시간에는 정답ID가 없으므로 예측 위치 후보k=argmax(p1,...,p18)를 중심으로 표시한다.
+`S = {i in active_ids : abs(i-k) <= id_tol}`로 표시 범위를 잡고1~18에서 잘라낸다.
+예: k=10,id_tol=2이면8~12, k=17이면15~18이다. id_tol은 설정값으로 두며 현재 오프라인 기본값은2다.
+
+히트맵은S 내부에서 각ID의 원래softmax 확률p_i에 따라 강도를 표시하고 최대 확률ID를 강조한다.
+바깥ID의 표시를 숨기더라도 원래 전체 확률 벡터는 보존한다. Class0의p1~p18 합은1-p0이며,
+masked의합은1이다. 필요 시 구간 확률합P_band=sum(p_i for i in S)를 함께 표시하되,
+이를 실제접촉 성공확률이나±n정답률로 표현하지 않는다. 조건부로 재정규화하는 UI를 선택한다면
+p_i/(1-p0)임을 별도 명시하고 원래 확률과 섞지 않는다. 분모가0인 경우 정규화하지 않는다.
+
+오프라인±n정확도는GT가 있을 때 abs(pred_id-GT_id)<=n의 성공 비율이다. 실시간 표시 범위와
+같은n을 사용할 수 있지만 범위의 중심과 의미가 다르다. 기존의약80%결과가 실시간 신뢰도80%를
+보장하지 않는다. 예측ID16의±2범위에18이 포함되더라도tip으로 바꾸지 않는다.
+무부하의 기본ID18은 별도 운용 표시로 남기고 검출 히트맵으로 확신을 만들어 표시하지 않는다.
+
+**구현 전 확인이 필요한 세부 조건**
+
+1. 실시간 부하 판정원과 임계값/전환 규칙. Class0를 쓸지, masked와 별도 신호를 쓸지.
+2. OFF의ID18 제한이 힘 신경망 계산 자체의 생략까지 뜻하는지, 계산은 계속하되 표시/제어 사용만
+   제한하는지. OFF에서도ID1~17이면tip 힘 제어를 허용하지 않는 위 표의 해석도 확인한다.
+3. Body 모드ON에서body 판정 시 실제 로봇의 반응, OFF에서body 히트맵을 표시할지 여부,
+   입력 누락/이력 부족/오래된 출력이 발생했을 때 제어 측 처리.
+
+**수행·검증·미완료**
+
+- 실제 bundle 저장/복원, 분기별 정규화/역정규화, 위치확률 해석, 현재 force_scope를 코드를 읽어 확인했다.
+- 전달문을 이 통합 문서에 추가했다. 새로운 문서/스크립트를 추가하거나 다른 프로젝트·ROS·카메라·모터를
+  열어 실행/수정하지 않았다. 학습/추론/제어 및 실시간 성능 검증은 수행하지 않았다.
+- 위 세부 조건과 사용할 checkpoint는 미확정이다. 이 전달문은 제어 기능 구현 완료나 실행 승인이 아니다.
+
+## 98. 2026-10-11 — 최근 TF로 자세 결측 보완 후 common 필요성 재확인
+
+- 요청/데이터 이력: 사용자는 카메라 시각과 TF 시각의 차이가 큰 경우 빈칸으로 저장되던 데이터를
+  ROS bag의 최근 TF 값으로 보완했다고 설명하고 common 조건을 생략해도 되는지 물었다.
+  해당 수집/변환 코드를 확인한 것은 아니며, 이번에는 현재 저장소의 CSV만 읽었다.
+- 결론: 각도/estimated 설정에서 실제 유지되는 원본 행이 같아지면 comparison_columns는
+  추가로 제외할 행이 없으므로 생략할 수 있다. 파일명의 common 자체에는 기능이 없다.
+  현재 파일에서는 아직 유지 행이 달라 동일 행 비교를 위해 기존 common 설정을 유지한다.
+- 전수 확인: train48파일916,014행, test19파일33,876행이다. Estimated XYZ/회전의
+  비수치·NaN/Inf 포함 결측 행은 train69/71,206행, test5,523/18,439행이다.
+  각 그룹의 한 열이라도 결측이면 한 행으로 세며 두 그룹의 수를 단순 합산하지 않는다.
+  Static train18파일에는 estimated XYZ/회전 결측이 없고, dynamic train17파일에는 남아 있다.
+  Test에는 자세 결측이 남은10파일이 있다. 다른 입력이나 힘 정답의 결측과 겹치는 행도 있다.
+
+| 현재 설정의 유효 원본 행(30행 창 생성 전) | train CSV 전체 | test CSV 전체 |
+|---|---:|---:|
+| cable+loadcell+angle, 공통 조건 없음 | 877,963 | 28,336 |
+| cable+loadcell+estimated pose, 공통 조건 없음 | 806,747 | 15,405 |
+| 기존 common2의 동일 행 조건 | 806,747 | 15,405 |
+| angle와 estimated가 서로 다르게 사용하는 행 | 71,216 | 12,931 |
+
+- 위 train 수에는 이후80:20으로 나눌 train/validation 행이 함께 포함된다. 현재 동일33열 및
+  힘 정답/ID의 유한 숫자 조건으로 원본 행 마스크를 비교했다. 적용되는 과거 exact-hash 계약은
+  summary_18-2.csv의 ID override뿐이며 행 제외 계약은 없다.
+- 실제 빈칸 예시: train/summary_18.csv는9,949행 중 회전8,551행이 비어 있고,
+  Excel5행부터 qx/qy/qz/qw가 모두 빈칸인 예가 있다. Test/summary_13_test.csv는556행 중
+  회전501행이 비어 있으며 Excel2행부터 빈칸이다. 실제 load_trial로도 common 유지 행이
+  각각1,397/55행임을 확인했다. 여기서 Excel행은 헤더를1행으로 센다.
+- 최근 TF 사용의 의미: 결측을 채워도 카메라와 자세의 시각 차이가 없어지는 것은 아니다.
+  실시간 사용을 비교하려면 각 시점까지 이용 가능한 최신 TF를 사용하는 방식과 맞춰야 한다.
+  이번에는 TF의 지연 크기나 미래 시점 값 사용 여부를 검증하지 않았으므로 동기화 품질 또는
+  성능 향상을 확정하지 않는다. 보완 후 성능은 보완 전 결과와 데이터 버전을 구분해서 보고한다.
+- 수행/검증: 전체67CSV의 입력/정답 유효 행을 읽어 비교했고 조사 전후 SHA256 불변을 확인했다.
+  결과는 이 문서에만 기록했다. 원본 CSV, YAML, 실행 명령, 핵심 코드 변경이나 학습/추론은 없다.
+- 미완료/다음: 보완본이 현재 train/test 전체에 반영되어 유지 행이 같아지는지 확인한 뒤 common
+  설정 정리 여부를 결정한다. 현재 common을 제거해도 실행은 가능하지만 입력만 다른 비교는 아니다.
+
+## 99. 2026-10-11 — static과 나머지 summary의 자세 결측 구분
+
+- 요청: 사용자는 static은 보완되어 있고 기존 summary_ID/summary_ID-2 및 test에 자세 빈칸이
+  남아 있는 것이 맞는지 확인했다.
+- 확인:98절 전수 조사에서 estimated XYZ+quaternion 기준 static train18파일은 결측0행이다.
+  나머지 dynamic train30파일 중17파일, test19파일 중10파일에는 자세 결측이 남아 있다.
+  모든 dynamic 파일/행이 비어 있다는 뜻은 아니다. 현재 파일 구성은 train48=static18+dynamic30,
+  test19이며 이번에도 파일 목록으로 개수를 확인했다. FK 또는 모든 CSV 열이 완전하다는 주장은 아니다.
+- 앞서 제시한 train 유효 행 표는 static과 dynamic을 합한 수이며80:20 validation 분리 전이다.
+  Static만의 결측 때문에 발생한 차이가 아니라 남아 있는 dynamic/test 자세 결측으로 모델별
+  사용 행이 달라지는 상황이다. 전체 데이터를 함께 비교하는 기존 common 조건은 아직 유효하다.
+- 수행/검증: 직전 전수 조사와 현재 파일 구성을 대조해 설명하고 이 문서에 기록했다.
+  이번에는 전체 CSV 내용을 재집계하지 않았으며 원본/설정/코드 변경 또는 학습/추론은 없다.
+  다음 데이터 보완/비교 범위 변경은 아직 요청되지 않았으므로 기존 설정을 유지한다.
+
+## 100. 2026-10-11 — 다른 ID에서 유사한 cable/loadcell과 다른 힘·상대각도를 가진 사례 탐색
+
+- 요청: datasets/20260926_f_ext_datasets 아래 여러 실험 summary에서 케이블 길이4개와
+  로드셀 장력4개가 같거나 비슷하지만 측정 Fx/Fy/Fz 또는 relative_angle이 다른5~10사례를
+  찾는다. 인접 ID보다1/5/10/15/18처럼 떨어진 접촉 위치를 우선한다.
+- 데이터:31개 summary.csv, 전체181,834행 중 선택8입력/힘3/상대각18/ID가 모두 유한 숫자인
+  181,803행을 사용했다. 결측31행을 제외했다. 이 폴더는 앞 절의 train48/test19와 별도 조사 범위다.
+  모든31개 session.json의 snapshot.hardware_constants.sources./robot_control에서
+  length_unit=mm, tension_unit=g를 확인했다. g는 원본 센서 표기이며 N으로 변환하지 않았다.
+  힘은 기존 프로젝트와 같은 fts_kalman.aligned_fx/fy/fz의 mN, 상대각 원본은rad이다.
+- ID 검증:18_right CSV는 원 ID가1이지만 기존 DEFAULT_DATA_CONTRACTS의 정확한hash
+  269578346b29158aafc7989051c872e71954f91d0a992665cedaf95d11b7c3af에 대한
+  사용자 확인 ID18 계약을 적용했다. 원본 ID와 분석용ID를 Excel에 모두 남겼다. 나머지는 기록ID와
+  폴더ID가 일치한다. 새로운 ID 보정이나 원본 수정은 하지 않았다.
+- 정확 일치 조사: 전체181,803개 비교 가능 행에서 다른 ID끼리8개 입력값이 모두 정확히 같은
+  벡터는0개였다. 찾은 사례는 모두 근사 일치이며, 다섯ID가 동시에 같은 벡터라는 의미가 아니다.
+- 후보 탐색: ID1/5/10/15/18의10개 ID쌍에서 거리
+  max(max|케이블차|/0.05mm, max|장력차|/5g)를 사용했다. 각 방향의 모든 행에 대해
+  가까운16개 후보를 탐색하고 거리6.01 이하 후보를 수집했다. GPU float32로 후보를 찾은 뒤
+  float64 원본값으로8채널 차이와 힘·각도 차이를 다시 계산했다. 후보는1,519,644쌍이다.
+  전 조합 중 전역 최대 차이를 보장하는 탐색이 아니며 사용자는 전체 사례 열거를 요청하지 않았다.
+- 기본 선정: 각 케이블차<=0.05mm, 각 장력차<=5g, 양쪽 시점 유부하, ID차>=4,
+  힘 벡터차>=200mN, 최대 상대각차>=2deg인 후보55쌍을 얻었다. 이8개 ID쌍에서
+  18관절 각도차RMS가 큰 후보를1개씩 골랐다(C01~C08). 허용차는 탐색 기준이지 센서 잡음이나
+  분해능으로 검증된 값은 아니다. 유부하는 현재 YAML의 축별134.326/126.814/192.670mN 기준이다.
+- 추가 선정: C09는 같은 엄격한 기준 안에서 ID10/18 최대각도차>=3deg인 후보 중 입력 거리가
+  가장 가까운 예다. C10은ID1/18의 비교를 위해 별도 확장한 예로 최대 장력차5.16g이며
+  기본5g 한계를 넘는다고 명시했다. 기존 기준을 충족한 사례로 섞지 않는다.
+
+| 사례 | 접촉 ID A/B | 최대 케이블차 mm | 최대 장력차 g | 힘 벡터차 mN | 최대 상대각차 deg |
+|---|---|---:|---:|---:|---:|
+| C01 | 1 / 5 | 0.02119 | 4.86 | 456.43 | 2.49 |
+| C02 | 1 / 10 | 0.03760 | 4.96 | 322.98 | 2.59 |
+| C03 | 1 / 15 | 0.04183 | 3.88 | 549.70 | 4.51 |
+| C04 | 5 / 10 | 0.04957 | 3.25 | 526.49 | 2.82 |
+| C05 | 5 / 15 | 0.02605 | 3.80 | 493.99 | 3.75 |
+| C06 | 5 / 18 | 0.04212 | 4.31 | 609.74 | 2.50 |
+| C07 | 10 / 15 | 0.04934 | 2.86 | 319.04 | 4.48 |
+| C08 | 10 / 18 | 0.04586 | 4.76 | 300.55 | 6.26 |
+| C09 | 10 / 18 | 0.00003830 | 1.84 | 239.64 | 3.02 |
+| C10(확장) | 1 / 18 | 0.03615 | 5.16 | 713.83 | 3.31 |
+
+- 최대 입력차는 각4채널의 절댓값 차이 최댓값이다. 힘 벡터차는||F_B-F_A||이며
+  ||F_B||-||F_A||와 다르다. 최대각도차는18개 상대각 중 최댓값이고 모델의 ID 오류가 아니다.
+  단일 시점 두 입력이 유사하다는 관찰이며30행 이력이 동일함을 확인한 것은 아니다.
+- 원본 추적 예시: C09는10_right Excel6258행과18_right Excel6843행이다.
+  힘XYZ(mN)는[142.336,18.731,-101.462]와[-39.520,-136.856,-89.211]이다.
+  C10은1_right Excel2315행과18_testdataset Excel2327행이다. 헤더가Excel1행이다.
+- 산출물: [similar_cable_loadcell_cases.xlsx](../results/analysis/20261011_175900_similar_cable_loadcell/similar_cable_loadcell_cases.xlsx)
+  한 개를 만들었다. Summary10행, Raw_values20행(8입력/XYZ/18각도 원값·파일·행·시간·ID),
+  사례10시트(A/B/차이·각도 및 힘 차트), Neighborhood(선택시점±0.2초), Source_files31행,
+  Readme(정의·단위·선정 기준·한계)로 총15시트다. 차트의 각도는deg이고 Raw_values/Neighborhood는rad다.
+  주변 힘 평균차도 함께 저장했다. C09의주변 평균 힘차는133.74mN으로 단일시점239.64mN보다 작다.
+  주변 구간 전체가 계속 유부하라는 의미로 확대하지 않는다.
+- 해석: cable/loadcell의 근사 중복 상태에서도 외력 측정값과 관측 형상이 달라지는 예시를 확인했다.
+  각도 입력이 추가 정보를 줄 수 있다는 가설과 일치하지만, 접촉 위치만이 원인이라고 증명하지는
+  않는다. 구동 이력·히스테리시스·실험간 offset·동기화 차이도 가능하다. 차이가 큰 예를 선별한
+  탐색 결과이며 발생률/모델 정확도/통계적 유의성 또는 각도 입력의 성능 향상으로 보고하지 않는다.
+- 검증: 선택20행을 원본에서 다시 읽어29개 센서 열과source_time_ns를 대조하고 차이를 재계산했다.
+  선택20행 모두aligned_force_valid=True/좌표계hrm_base임을 확인했다. 생성Excel을ZIP/XML로
+  다시 읽어15시트/20개차트/Raw_values20행의580개 센서 숫자를 검산했다. 전체31CSV의
+  SHA256은 조사 전후 불변이다. 다른 저장소나 ROS를 실행/수정하지 않았다.
+- 수행 범위/다음: 결과Excel1개와 이 통합 기록만 새로 저장했다. 검색/내보내기 일회성 코드는
+  /tmp/hrm_find_similar_internal_20261011.py 및 /tmp/hrm_export_similar_internal_20261011.py에 있다.
+  기존 코드/YAML/학습·test 결과는 바꾸지 않았고 재학습도 하지 않았다. 원인 분리와 실제 입력 조합
+  성능 비교는 후속 연구 범위로 남기며 이번 탐색에서 완료했다고 주장하지 않는다.
+
+## 101. 2026-10-11 — 유사 입력 사례의 원본 파일·행 번호 표시 확인
+
+- 요청: 사례별 비교한 ID 파일과 원본의 몇 번째 행인지 결과에 표시되어 있는지 확인했다.
+- 실제 Excel을 다시 읽어 Summary의 file_A/excel_row_A/file_B/excel_row_B,
+  각 사례 시트 상단의 파일 경로/Excel row/elapsed_s, Raw_values의 file/
+  source_row_zero_based/excel_row_header_is_1이 저장되어 있음을 확인했다.
+- 예: C09는10_right/csv/summary.csv의Excel6258행과18_right/csv/summary.csv의Excel6843행이다.
+  Excel행 번호는 원본CSV를 엑셀로 열었을 때 헤더를1행으로 센 번호이며, 정리된 결과표 안의
+  행 번호가 아니다. source_row_zero_based는 헤더를 제외한0기반 데이터 행 번호다.
+- 수행: 기존 산출물을 읽어 확인하고 설명/기록했다. Excel이나 원본을 수정하지 않았고
+  추가 분석/학습/추론은 수행하지 않았다. 이번 확인 요청의 미완료 작업은 없다.
+
+## 102. 2026-10-11 — 유사 입력 탐색을 두 ID 비교에서 ID1~18 전체 묶음으로 정정
+
+- 요청/정정: 사용자는100절의 결과가 두 ID씩 비슷한 행을 고른 것인지 확인하며 ID1~18 모두에서
+  비슷한 데이터를 원했다고 정정했다. 앞의C01~C10은 실제로 두ID 비교쌍이었으므로 요청을 좁게
+  해석했음을 설명했다. 이번에는 한 묶음에ID1~18 각각의 대표행1개씩을 포함하는 방식으로 조사했다.
+  기존 두ID 비교 결과는 이력으로 보존하며18-ID 공통 사례로 해석하지 않는다.
+- 데이터:100절과 같은31개 summary의 유효181,803행을 사용했다. 재사용 전 원본SHA256을
+  전부 확인했다. 모든 ID/8개 입력/힘3/상대각18을 사용하며 기존18_right의 정확한hash ID18
+  보정 계약을 유지한다. 새로운 데이터 분할/라벨/학습 설정 변경은 없다.
+- 엄격한18-ID 묶음 검사: 각 케이블 채널의18-ID간 최대차<=0.05mm, 각 장력 채널의 최대차<=5g를
+  동시에 만족하는지를 조사했다. 모든 묶음에는ID1 행이 반드시 들어가므로, ID1의4,702개 행
+  각각에서 다른17개 ID의 최근접 행까지의 거리 max(|케이블차|/0.05, |장력차|/5)를 계산했다.
+  GPU float64로 모든 대상 행을 비교했고 선택 거리도float64 원값으로 재계산했다.
+- 결과: 부하 조건 없이도 모든17개 최근접 거리가1이하인ID1 기준행은0개다. 최악ID 거리의
+  최솟값은2.594였다. 그러므로 현재 유효 행에서 기존 기준을 만족하는18-ID 묶음은 없다.
+  모든18개 행을 유부하로 제한하면ID1 기준행1,565개에서 해당 최솟값은4.334214이고 역시0개다.
+  이 부재 확인은 한 묶음만 시도해 실패한 결과가 아니라 모든 ID1 후보를 검사한 필요조건 위반이다.
+  허용차0.05mm/5g는 이전 탐색 기준이며 센서 잡음/분해능으로 검증한 값은 아니다.
+- 참고 묶음: 각 기준행에 대해18-ID 최근접 대표행을 만든 뒤, 조건별 입력이 다른32개 시작점에서
+  ID2~18의 행을 번갈아 바꾸어 최대 정규화 채널 범위를 줄였다(최대8회). 입력/시간이 다른 기준행을
+  선택해 부하 무관M01~M05와 전부 유부하L01~L05를 저장했다. 힘·각도 차이를 크게 만드는 기준으로
+  선택하지 않았다. 전역 최적 조합을 찾았다고 주장하지 않으며, 모든 참고 묶음은 엄격한 기준 불충족이다.
+
+| 참고 묶음 | ID 수 | 유부하 ID 수 | 전체ID간 최대 케이블차 mm | 최대 장력차 g |
+|---|---:|---:|---:|---:|
+| M01 | 18 | 3 | 0.197352 | 20.29 |
+| M02 | 18 | 2 | 0.199420 | 20.59 |
+| M03 | 18 | 1 | 0.198376 | 21.88 |
+| M04 | 18 | 2 | 0.226811 | 21.91 |
+| M05 | 18 | 3 | 0.200262 | 23.93 |
+| L01 | 18 | 18 | 0.289560 | 32.40 |
+| L02 | 18 | 18 | 0.289560 | 32.40 |
+| L03 | 18 | 18 | 0.289560 | 32.40 |
+| L04 | 18 | 18 | 0.289560 | 32.40 |
+| L05 | 18 | 18 | 0.291571 | 32.86 |
+
+- 위 범위는 각 채널에서18개 ID의최대−최소를 구하고,4채널 중 가장 큰 값을 표시한 것이다.
+  ID1과의 차이도 별도로 기록하지만 그것만으로 전체ID 사이의 유사성을 대체하지 않는다.
+  M의 무부하 행에 붙은ID는 실험 연결 위치이며 실제 접촉을 검출한 ID가 아니다. 묶음 사이 일부
+  원본 행을 재사용하므로10개의 독립 실험으로 취급하지 않는다(총180행 중 고유 원본128행).
+- 산출물: [all18_input_comparison.xlsx](../results/analysis/20261011_181759_all18_input_comparison/all18_input_comparison.xlsx).
+  Summary10행, Raw_values180행, 묶음10시트(각ID1~18 전체 입력/힘/파일/행 및18×18 상대각표),
+  Anchor_coverage6,267행(부하 무관4,702+전부유부하1,565기준), Source_files31행, Readme로
+  총15시트다. 각 묶음 위에 기본 유사도 기준 불충족을 명시했다. 상대각은Raw_values에서rad,
+  묶음시트에서deg로 표시한다. 행 번호는CSV 헤더=Excel1행 기준이다.
+- 검증: 선택 고유128행을 원본CSV에서 다시 읽어센서29열과시각을 대조했다. 모든 묶음의ID가
+  정확히1~18인지와L의18행 모두 유부하인지 확인했다. 저장Excel을다시 읽어15시트/10차트/
+  Raw_values180행의5,220개 숫자를검산했고 원본31CSV hash는 최종 검사까지불변이다.
+- 수행/한계/다음: Excel1개와통합기록을추가했으며기존두ID 결과/원본/코드/YAML을변경하지않았다.
+  임시검색코드는/tmp/hrm_match_all18_20261011.py 및 /tmp/hrm_refine_all18_20261011.py,
+  내보내기는/tmp/hrm_export_all18_20261011.py다. 재학습/예측은없다. 요청한범위전체를조사했지만
+  기존허용차를충족하는18-ID 사례를발견한것은아니다. 참고묶음을같은입력의비식별성증거나
+  접촉위치만의인과효과로보고하지않는다. 더넓은허용차를유사하다고간주할지는아직확정하지않았다.
+
+## 103. 2026-10-11 — L01의 ID별 케이블·장력·외력 원값을 채팅 표로 제시
+
+- 요청: 새로 구한18-ID 비교에서 각 ID 파일의 케이블 길이·장력·외력값을 표로 보며 묶음을
+  하나씩 확인하고 싶다고 했다. 우선18개 선택 행이 모두 유부하인L01을 제시했다.
+- 수행: all18_input_comparison.xlsx의Summary/Raw_values를 직접 읽어L01의ID가1~18을
+  모두 포함하고 loaded가모두True인지 확인했다. 케이블4/장력4 표와Fx/Fy/Fz/원본폴더/행 표를
+  채팅에 표시했다. 표시 자릿수는 케이블mm 소수4자리, 장력g 및 외력mN 소수2자리다.
+  원본 정밀도는 기존Excel에 그대로 있으며 round한 값으로 재분석하지 않았다.
+- 추적: 파일은 datasets/20260926_f_ext_datasets/sine-35deg-both_seg-id-{표의접미사}/csv/summary.csv다.
+  행은헤더=Excel1행 기준이다. 예: ID1은1_right의3707행, ID18은18_testdataset의4908행이다.
+  L01의18행은CSV ID와분석용ID가모두같으며 이묶음에는18_right ID보정 사례가없다.
+- 해석/검증: L01의18-ID간 최대 케이블차0.289560mm/장력차32.40g로 기존엄격한유사기준은
+  충족하지않는다. 이번표는저장된참고묶음의실측원값이며모델예측값이아니다.
+  기존Excel/원본/설정/코드는수정하지않았고새검색·학습·추론도없다. 다른묶음은기존Excel에유지했다.
+
+## 104. 2026-10-11 — 떨어진5개 ID의 케이블·장력이 가장 가까운 유부하 묶음
+
+- 요청: ID1~18에서 구간 차이가 있는5개 ID를 골라 케이블 길이·로드셀 장력이 가장 비슷하지만
+  외력은 다른 데이터를 찾아 달라고 했다. 다섯쌍이 아니라 각ID에서 한행씩인 다섯행 묶음으로 진행했다.
+  자동선정/ID1·5·10·15·18 고정 선택을 선택형 질문으로 제시했으나 응답이 없어 자동선정을 적용했다.
+  고정ID 경우도 별도 계산하여 참고 수치를 남겼다.
+- 검색 범위: 원본31CSV의 센서29열(케이블4/장력4/상대각18/힘3)과ID가 숫자인181,803행 중
+  현재 수동 무부하 경계 밖인85,520행을 사용했다. 선택행 모두 유부하로 제한했다.
+  ID1~18에서 오름차순5개를 선택하고 이웃한 선택ID 간격>=3, 최소ID<=3, 최대ID>=16을
+  분석용 조건으로 정했다. 이 조건을 만족하는210개 ID조합을 모두 검사했다.
+- 유사도: 각 입력 채널의 다섯행 최대−최소를 구해 케이블은0.05mm, 장력은5g로 나눈 뒤
+  8개 정규화 범위 중 최댓값J를 최소화했다. 동률이면 정규화 범위의 합을 비교했다.
+  0.05mm/5g는 기존 탐색 척도이며 센서 잡음/분해능을 검증한 값이 아니다. 힘·각도 차이는
+  선택 목적함수나 선별 임계값에 넣지 않고 선택 후 계산했다.
+- 최적성 확인: 각 조합의 최소ID 모든 유부하 행과 다른ID 모든 유부하 행 사이 float64 최근접
+  Chebyshev 거리를 계산했다. 기준행-ID조합337,974개 중 현재 최선J 이하가 가능한18개에 대해
+  거리 범위 안의 모든 행을 열거하고 전체8채널 범위로 분기 한정 탐색했다. 근사 최근접이나
+  상위k행 제한은 사용하지 않았다. 정한 데이터/ID간격/부하/거리 조건에서 더 작은J가 없음을
+  확인했다(수치 허용오차1e-10). 다른 정규화 척도에서도 가장 가깝다는 뜻은 아니다.
+- 결과: **ID1·7·10·15·18**, J=1.846. 최대 케이블 범위0.0733283547794118mm,
+  최대 장력 범위9.23g, 최대 힘 벡터차1,026.7008807388743mN(ID1↔7)이다.
+  다섯행의 상대각 차이는18관절 중 최대6.127605deg였다. 이전의 엄격한0.05mm/5g 기준을
+  충족하거나 입력이 완전히 같다고 표현하지 않는다.
+
+| ID | 원본 폴더 접미사 | 원본 Excel행 | Fx mN | Fy mN | Fz mN |
+|---:|---|---:|---:|---:|---:|
+| 1 | 1_right | 960 | 83.190 | 39.887 | 245.033 |
+| 7 | 7_left | 3361 | -41.312 | -63.239 | -768.860 |
+| 10 | 10_right | 5790 | 161.938 | 38.307 | 40.914 |
+| 15 | 15_right | 2740 | 56.463 | 141.953 | -45.444 |
+| 18 | 18_right | 6376 | 37.136 | -147.619 | 24.232 |
+
+- 원본 경로는 datasets/20260926_f_ext_datasets/sine-35deg-both_seg-id-{접미사}/csv/summary.csv다.
+  Excel행은헤더=1행이다. 18_right의CSV ID1은 기존SHA256 계약
+  269578346b29158aafc7989051c872e71954f91d0a992665cedaf95d11b7c3af에 따라 분석용ID18로 해석했다.
+  원본은 수정하지 않고 Excel에 분석ID/원본ID를 모두 남겼다. 시간은캐시의float 변환값 대신
+  원본source_time_ns 문자열을 다시 읽어 저장했다.
+- 고정ID 참고: ID1·5·10·15·18로 한정한 최소J는2.828, 최대케이블차0.136834mm/장력차14.14g,
+  최대힘벡터차872.30mN이었다. 이보다 자동선정 묶음의 입력 거리가 가까워 본표는 자동선정5행만 담았다.
+- 산출물: [five_id_similar_inputs.xlsx](../results/analysis/20261011_183433_five_id_similar_inputs/five_id_similar_inputs.xlsx).
+  Values(5행: 모든 입력/힘/각도rad/원본파일/행/시간/ID), Differences(10쌍의차이 및8채널 범위),
+  Angles(관절별5개ID 각도deg), Method, Source_files(31파일hash)의5시트와 힘/각도 차트2개다.
+  외력은Kalman aligned mN/hrm_base 원값이며 케이블mm/장력g 센서 표기를 유지했다.
+- 검증: 선택5행의센서29열·원본ID를CSV에서 다시 읽어대조했고 힘valid=True/좌표계hrm_base,
+  유부하 조건을 확인했다. 저장Excel을ZIP/XML로 재독출하여 Values의숫자185개 및문자열을
+  검산하고5시트/2차트를 확인했다. 검색전후31CSV SHA256은불변이다.
+- 수행/한계/다음: 결과Excel1개와이통합기록만추가했다. 기존결과/원본/코드/YAML은변경하지않았고
+  재학습/추론은없다. 임시검색/최적성검사/내보내기는/tmp/hrm_five_id_search_20261011.py,
+  /tmp/hrm_five_id_exact_20261011.py, /tmp/hrm_export_five_ids_20261011.py에있다.
+  이번요청의검색·원값제시·저장은완료다. 단일시점의근사입력 비교이며30행 이력이 같음이나
+  접촉위치만의인과효과를증명하지않는다. 다른 거리 가중치/전체 이력 비교는 후속 범위다.
+
+## 105. 2026-10-11 — M/L 및 01~05 표기의 의미 설명
+
+- 요청: 이전18-ID 결과의 M01/L01에서 문자와01~05가 무엇인지 설명을 요청했다.
+- 확인/설명:102절의 선정 기준과 표를 확인했다. M(Mixed)은 부하 상태를 제한하지 않아
+  무부하/유부하가 섞일 수 있는 묶음, L(Loaded)은18개 선택행 모두 유부하인 묶음이다.
+  01~05는 각 조건에서 고른 다섯 참고 묶음의 식별번호이며 contact ID/원본 행 번호가 아니다.
+  각 묶음은ID1~18에서 한행씩 총18행이다. 예를 들어M01은 유부하3행/무부하15행,
+  L01은 유부하18행이다. 번호만으로 전역 최적 순위나 독립 실험 번호를 의미하지 않으며
+  묶음 사이 일부 원본 행이 겹친다. 최신104절의5개ID 묶음은 별도 결과임을 구분했다.
+- 수행/검증/다음: 기록을 읽어 정의를 확인하고 이 설명만 누적했다. 원본/결과Excel/코드/설정은
+  수정하지 않았고 새 검색·학습·추론도 없다. 이번 설명 요청의 미완료 작업은 없다.
+
+## 106. 2026-10-11 — 제어 프로젝트의 models 폴더와 bundle 로딩 구성 확인
+
+- 요청: class0/masked 조합별hrm_bundle.pt를 제어 프로젝트의models 폴더에 복사하고 경로로
+  원하는 조합을 선택해 사용할 수 있는지, 로딩 코드를 간단하게 유지할 수 있는지 확인했다.
+- 확인: train.bundle_for/restore_bundle, model_zoo.build_estimator, predict.predict_trials 및
+  train.WindowStore/predict_branch를 읽었다. Bundle은 실행형 모델 파일이 아니라 두 독립분기의
+  state_dict·구조/크기·mode·입력순서·window_samples·분기별scaler·교정·단위/범위 등을 담은 사전이다.
+  가중치파일 하나로 해당 힘/위치 조합을 함께 복원하며 모델 종류와mode를 별도로 재지정할 필요는 없다.
+- 실제파일확인: train/20261011_174727_cable_loadcell_angle의masked MLP/CNN은26입력/30행/18클래스,
+  train/20261011_174727_loadcell_angle의class0 MLP/Transformer는22입력/30행/19클래스였다.
+  양쪽force_unit=N/force_scope=tip을 확인했다. Masked 예의 힘/위치 x_mean은 서로 달랐다.
+  동일시각 모든 입력폴더의모든조합 완료를 확인한 것은 아니다.
+- 전달구성: models 아래 입력종류/방식·모델조합 하위경로를 보존하면 파일명이 같아도 충돌없이
+  선택할 수 있다. 제어환경에는 호환PyTorch, 해당checkpoint와맞는model_zoo.py, 정규화/이력/추론을
+  처리할공통로더가 필요하다. 현재YAML/학습CSV/Excel을 실시간추론 때문에 복사할필요는 없다.
+  학습된입력열순서·단위를 유지하고 각bundle의이력길이를 따른다. 분기별입력정규화, 힘역정규화,
+  softmax 및class ID매핑을 로더 안에서 처리해야 한다. 모델은초기화/선택변경시로드하고반복사용한다.
+- 운용구분: class0는ID0+active_ids, masked는active_ids이며자체무부하판정이없다.
+  ID18기본값/body ON/OFF/id_tol히트맵은제어측정책이고pt복사만으로추가되지않는다.
+  현재tip전용힘모델의출력을body힘으로해석하지않으며 제어부호반전은97절의한번적용합의를따른다.
+- 수행/검증/미완료: 기존복원함수는train.restore_bundle에있지만학습/data_utils모듈의존성이있다.
+  제어전용독립간편로더는아직구현하지않았다. 이번에는코드와실제bundle메타데이터를읽어확인하고
+  이기록만추가했다. 다른제어프로젝트접근/복사/수정, 새로더구현, 추론/재학습/제어실행은하지않았다.
+  이설명요청은완료이며독립로더와제어연결은후속작업이다.
+
+## 107. 2026-10-11 — estimation_pkg 구상과 masked의 실시간 무부하 판정 설명
+
+- 요청/구상: 사용자는 제어프로젝트src/estimation_pkg에 학습된models 폴더를그대로복사하고,
+  force_estimation_node.py에서config의방식·힘모델·위치모델에따라hrm_bundle.pt를선택할계획이다.
+  Class0의ID0 의미, 과거양방식성능, masked선택시무부하후처리가필요한지질문했다.
+- 설명: 경로는models/{mode}__force_{force_model}__location_{location_model}/hrm_bundle.pt로
+  구성할수있다. 외부메시지형식은통일가능하지만원래위치출력은class0=19클래스/masked=18클래스다.
+  Class0는전체클래스argmax가0이면무부하로예측한것이며실제무부하의보장은아니다.
+  Masked는무부하입력에도ID1~18 후보와확률을내므로별도실시간판정원이필요하다.
+  최대ID확률이낮음은위치불확실성이지무부하의증거가아니다. 없는p0를0으로간주하지않는다.
+- 과거결과확인:73절의20261006_211528학습/20261006_221159test 및validation선택Transformer를
+  기준으로확인했다. Body동일녹화분할의GT유부하8,242행에서정확ID조건부는masked30.49%/
+  class032.89%, ±2는82.16%/78.15%, ±3는87.14%/84.48%다. Class0조건부는p0를제외한
+  위치후보이며모델이유부하로판단한행만골랐다는뜻이아니다. Class0의검출포함±2는60.66%,
+  ±3는64.21%, body유부하검출률72.23%/무부하정답률98.50%다. Masked자체에는대응검출지표가없다.
+  조건부근접위치는masked가높지만정확ID나무부하까지포함한운용전체에서우월하다고결론내리지않는다.
+  이수치는최신20261011입력조합학습의재평가가아니다. 과거선택힘MLP의독립tip RMSE138.56mN/
+  MAE96.46mN은양방식동일했으며힘분기연속출력은ID0여부로0처리하지않는다.
+- 운용범위: 실측F/T에적용한학습무부하경계는센서없는실시간판정원이되지않는다.
+  Tip전용힘모델의예측값에150/200mN문턱을적용해body접촉까지판정할수있는지는별도검증항목이다.
+  Class0는기존출력으로부하판정을구성할수있어연결이단순하고, masked는추가판정후결합해야한다.
+  방식선택/실시간문턱은이번설명으로변경·확정하지않았다.
+- 수행/검증/미완료: 통합기록73·97·106절과실제bundle저장/IDdecode코드를대조하고설명/기록했다.
+  새파일/노드구현·모델복사·학습/추론·다른프로젝트접근은수행하지않았다. 이번질문답변은완료이며
+  제어노드/공통로더및masked판정원은후속구현범위로남아있다.
+
+## 108. 2026-10-11 — 제어측 가변 부하 기준과 두 방식의 공통 제어 흐름 논의
+
+- 요청/의도: 사용자는 학습 라벨 기준보다 운용 부하 기준을 여유 있게 정하고 제어측에서
+  가변 범위로 걸러 위치·힘 추정을 사용하려 한다. Class0/Masked 선택에 따른 코드 차이와
+  별도 부하 판정이 있을 때 class0가 필수인지 의견을 요청했다.
+- 설명: 제어측 부하 판정을 공통으로 적용하면 방식 차이는 주로 체크포인트 선택과 위치출력
+  해석에 한정된다. Masked는ID1~18을 사용하고, class0도외부판정을우선하는정책을선택한다면
+  p0를제외한ID1~18 후보를사용할수있다. 기존conditional_id 계산이이동작을지원한다.
+  이정책은class0의기존전체argmax 판정과다르며현재코드/저장예측을변경하지않았다.
+  Class0 원래p0/최종ID/확률은보존하고운용상선택과구분한다. 확률합은class0가1-p0,
+  masked가1이므로히트맵강도를직접비교할때원확률/조건부정규화확률을혼동하지않는다.
+- 판단: 별도의신뢰할수있는부하판정이있으면class0의무부하클래스는운용필수요소가아니다.
+  Masked를유부하위치추정에사용하는구성이사용자의역할분리와맞는다. 다만외부판정이아직검증되지
+  않은상태에서전체검출성능까지좋아졌다고주장하지않고모델선택/삭제/재학습도수행하지않는다.
+- 순서/기준: 추정힘을부하판정에쓴다면힘신경망을먼저실행한뒤문턱을비교해야한다.
+  힘은무부하에서도연속출력하며기준이하운용ID18은이전요청의기본값이다. 별도센서판정을쓴다면
+  위치추론전판정도가능하다. 판정신호와합력/각축기준은아직확정하지않았다.
+  현재tip전용힘출력을body검출신호로활용할수있는지는별도검증이필요하다.
+- 안정성: 무부하취급범위를넓히는것은작은접촉의위치판정을생략하는절충이며그구간이실제로힘0임을
+  뜻하지않는다. 진입/해제문턱을다르게두는히스테리시스는전환흔들림을줄이는후속제안일뿐적용하지않았다.
+  운용문턱만바꾸면재학습은필수아니지만학습GT는그대로이고검출포함성능은새문턱으로다시평가해야한다.
+- 수행/검증/미완료: 현재통합기록과data_utils.location_predictions/train.predict_branch를
+  읽어확인하고설명만누적했다. 노드/로더/모델/기존결과/다른프로젝트는변경하지않았다.
+  이번개념질문은답변완료이며신호·문턱및실제제어구현/검증은후속범위다.
+
+## 109. 2026-10-11 — YAML의 common 제거 가능 여부와 현재 데이터 재확인
+
+- 요청: configs의common YAML들을이제없애도되는지질문했다. 파일명변경/파일삭제/공통행필터삭제가
+  각각다른효과가있으므로설정과현재CSV를읽어확인했으며변경을실행하지않았다.
+- 설정확인: train_cable_loadcell_angle.yaml과angle_common의실제설정차이는comparison_columns,
+  test_evaluation_scope 두개다. 공통두설정은각도18과estimated XYZ+quaternion7을포함한같은
+  33개비교열을요구하며실제신경망입력은각도판26열/자세판15열이다. Common파일명자체는필터기능이
+  없고comparison_columns가행을고른다. 현재commands.txt에는common 참조가없다.
+- 데이터검사: datasets/train 및test의현재CSV 전체에서선택입력·힘3·ID가유한숫자인행을계산했다.
+  Train파일은이전기록48개에서현재58개이며, 각도/자세/공통모두960,227행이다.
+  각CSV별로도각도행에서공통조건이추가로제외하는행이0이다. Test19개는각도28,336행,
+  자세15,405행/공통15,405행이며8개파일에서각도입력만쓸때와행집합이다르다.
+  예: summary_13_test.csv 556→55행, summary_17_test.csv 627→79행,
+  summary_18_test.csv 5,740→802행이다. 사용자가힘보고대상으로정한summary_18_test_2.csv는
+  각도/공통모두2,601행이다. 이행수는30행창생성·80/20분할·hash예외처리전의숫자조건집계다.
+- 해석: 현재train의공통필터는추가행제외가없어학습행관점에서는생략가능하고,
+  summary_18_test_2만비교할때도현재숫자행이같다. 그러나전체test에서입력종류를동일행으로
+  비교하려면공통조건을유지하거나평가시동일원본행으로다시맞춰야한다. 파일명만common을빼도
+  comparison_columns가남으면동작은같다. 이미학습된bundle의실시간입력은실제input_columns를
+  따르므로원래도공통비교열이나현재YAML을요구하지않는다. Common은class0/masked·부하판정과무관하다.
+- 수행/검증/미완료: YAML간설정비교와현재77CSV의필요열읽기/유한값마스크집계를수행하고기록했다.
+  원본CSV/설정/실행명령/기존결과는변경하지않았고학습·추론·새결과파일생성은없다.
+  이번질문은조건별로답변완료이며실제파일삭제/이름변경과전체test비교조건변경은확정하지않았다.
+
+## 110. 2026-10-11 — common 없는 Estimated/FK 자세 입력 YAML 두 개 생성
+
+- 요청/합의: 사용자는train자세결측을대부분채웠으므로공통행조건을없애고Estimated/FK 설정두개를
+  만들도록요청했다. 추가파일명질문에‘common 없는 이름으로 정리’를선택했다.
+  이미확인한XYZ+회전입력선호에따라회전은quaternion4개를유지한다.
+- 파일상태: 작업시작시angle_common/estimated_pose_common YAML은이미파일시스템에없었다.
+  이를복구하거나별도common설정을만들지않았다. configs/train_cable_loadcell_angle.yaml을기준으로
+  input_columns만바꾼다음두YAML을추가했다.
+
+| 파일 | 케이블4·로드셀4에 추가하는 입력 | 총 입력 수 |
+|---|---|---:|
+| [train_cable_loadcell_estimated_pose.yaml](../configs/train_cable_loadcell_estimated_pose.yaml) | estimated_tip.x_m/y_m/z_m + estimated_tip_orientation.qx/qy/qz/qw | 15 |
+| [train_cable_loadcell_fk_tip.yaml](../configs/train_cable_loadcell_fk_tip.yaml) | fk_tip_tf.x_m/y_m/z_m/qx/qy/qz/qw | 15 |
+
+- FK는85절의자세선택과같이위치·회전을같은fk_tip_tf 묶음에서읽는다. 현재CSV에서별도fk_tip.xyz와
+  fk_tip_tf.xyz가갱신시점에따라달라질수있음을확인했으며두소스를섞거나동일값으로가정하지않았다.
+  위치m/회전qx,qy,qz,qw 원값과부호를그대로입력한다. 다른저장소에서자세생성코드를조사하지않았다.
+- 전처리: 두설정모두comparison_columns가없다. 선택한입력·정답의숫자행만유지한다.
+  사용자는test에서는외력을GT로만쓴다고설명했으며, 힘이GT인점과별개로test에서도선택한자세입력이
+  있어야예측할수있음을알렸다. 자세빈칸을무시하거나0으로채우지않고해당행을제외하는기존동작을유지한다.
+  기존bundle의공통행전처리재현기능은보존하기위해data_utils.py의comparison_columns 지원은지우지않았다.
+- 유지사항: 입력열외의YAML값이기존각도설정과동일함을프로그램으로검사했다. 힘GT는
+  fts_kalman.aligned_fx/fy/fz, force_scope:tip, ID1~18, masked/class0, 11×11×2조합,
+  batch_size1024/window_samples30/max_epochs60, 현재수동무부하범위, 파일별80/20분할을유지한다.
+- 실행안내: commands.txt의기본일반4종for문은그대로두고바로위에자세2종대체줄을주석으로추가했다.
+  새shell/Python파일은만들지않았고README의삭제된common설정안내를현재두설정안내로갱신했다.
+
+```bash
+for HRM_INPUT in cable_loadcell_estimated_pose cable_loadcell_fk_tip; do
+```
+
+- 실제데이터검증:77CSV 헤더에서입력열을확인하고load_config 및prepare_data(cfg,None)로
+  전체자료를준비했다. 두설정모두train58/test19, 중복/보호역할검사와파일별분할/창검사를통과했다.
+  두설정의전체ID자료는train768,158행/validation192,069행, 각각766,476/190,387창이다.
+  Estimated test는15,405행/14,854창, FK test는15,936행/15,385창이다.
+  두설정모두summary_18_test_2는2,572개예측창을만든다. 이수치는최적화학습이나추론성능이아니며
+  힘전용ID18·유부하위치지표별support는실행결과에서별도집계한다.
+- 검증/산출물: 설정읽기·기존설정과입력외동일성·실제데이터준비·bash -n commands.txt·
+  git diff --check를통과했다. 검증요약은/tmp/hrm_pose_no_common_preflight_20261011.json에있다.
+  원본CSV/기존모델/결과는변경하지않았고results에새학습폴더도만들지않았다.
+- 완료/다음: 요청한YAML2개와실행안내/통합기록정리를완료했다. 실제학습·예측·Excel생성은
+  실행하지않았다. 사용자가실행한뒤전체test 비교에는입력별유효행차이가있음을표기한다.
+
+## 111. 2026-10-11 — 각도/Estimated/FK TF 3종 실행 확인 및 FK 위치 차이
+
+- 요청: 사용자는3종반복문의실행과fk_tip/fk_tip_tf 차이를물었다. 확인중FK YAML에존재하지않는
+  fk_tip.qx/qy/qz/qw가잠시지정되어문제를알렸다. 사용자가이전턴을중단하고파일명/입력열을
+  fk_tip_tf로정리한뒤3종학습여부를다시확인했다. 새메시지와실제저장설정을최종의도로반영한다.
+- 최신입력: cable_loadcell_angle은26열(케이블4+장력4+상대각18), estimated_pose와fk_tip_tf는
+  각각15열(케이블4+장력4+XYZ3+quaternion4)이다. 세설정의힘범위는tip(ID18), 위치는ID1~18,
+  masked/class0와모델11×11의242조합씩총726조합이다. 각도입력과끝단자세입력을비교하는실험이며
+  ‘모든입력이끝단자세’또는‘위치학습까지ID18만’이라는뜻은아니다.
+- 명령확인: 선택한괄호블록을프로젝트루트에서실행하면각입력설정별학습→test예측→±2 Excel정리
+  후다음설정으로진행한다. 날짜/시간은한번만생성하고입력별접미사가붙는다. set -e로오류시중단된다.
+  bash -n commands.txt와predict_and_organize.sh를통과했고3YAML을load_config로읽었다.
+  train58/test19 전체77CSV 헤더에각입력열이모두있는것을확인했다. 원래110절의데이터준비검사를
+  다시학습한것은아니며최신FK 설정의없는열문제는해결된상태다. README의파일명/실행안내만맞췄다.
+- 이전턴에서완료한위치차이조사: 같은행의두XYZ가모두숫자일때3차원거리||XYZ_tf-XYZ||를mm로
+  계산했다. Train998,346행의75.5325%는완전동일, 평균0.351626mm/95백분위2.172377mm/
+  최대59.140859mm다. Test의동시숫자15,934행은모두완전동일했다. 양쪽frame_id는hrm_base였다.
+  선택TF입력·힘GT·ID까지숫자인train960,227행에서는평균0.365505mm/중앙값0mm/
+  95백분위2.251565mm/99백분위6.065060mm/최대59.140859mm이며90.4767%가1mm이내였다.
+  이는분할/창생성/손실조건적용전의통계이며두입력이모든행에서무시가능하게가깝다는뜻은아니다.
+- 최대차이는train/summary_sine-35deg-both_seg-id-8_left.csv의원본Excel627행(헤더1행)이다.
+  fk_tip 시차0ms/fk_tip_tf 시차-166.709961ms가함께기록되어있다. ID18_left의9947행은
+  25.871772mm/TF시차-4467.902099ms였다. 최근TF값유지/정렬의영향가능성이있지만상위생성코드를
+  읽어원인을확정하지않았다. 결과는/tmp/hrm_fk_tip_vs_tf_20261011.json에있다.
+- 완료/다음: 실제명령/설정/열이름확인은완료했다. 사용자수정중인commands/YAML은바꾸지않고
+  README/이기록만갱신했다. 새학습/예측/제어실행이나원본수정은없다. 선택입력·정답의빈칸행은
+  기존대로제외하며학습실행은사용자가진행한다.
+
+## 112. 2026-10-11 — ID18 train/test 동일 실험 기록 중복 확인 및 제외
+
+- 요청: 사용자가 3종 반복문의 첫 각도 학습에서 `Train/test share selected X/Y data` 오류를
+  전달했다. 네트워크 학습 전 데이터 준비에서 발생했으며, 실패 실행
+  `results/train/20261011_194045_cable_loadcell_angle`은 확인 당시 빈 폴더였다.
+- 원인: `datasets/train/summary_sine-35deg-both_seg-id-18_right.csv`와
+  `datasets/test/summary_18_test.csv`는 각각 5,770행의 같은 실험 기록이다.
+  source_time_ns를 문자열로 읽어 비교한 결과 전체 행의 시각이 같고,
+  케이블4·장력4·각도18·힘3이 유한한 5,740행 모두 같은 원본 행 번호에서 완전히 일치했다.
+  오류의 row30은 0부터 세는 데이터 행 번호이며 Excel에서는 헤더를 포함한 32행이다.
+  유효 중복은 원본 데이터 행30~5769(Excel32~5771) 전체다.
+- 자세 보완의 영향: 유효 중복 행의 공통268열 중225열은 모두 같고,
+  다른43열은 Estimated/FK 위치·회전 및 그 시간/프레임/매칭 관련 열이었다.
+  전체 파일 hash가 달라 바이트 단위 중복 검사를 통과했고, 각도 입력 검사에서 중단됐다.
+  자세 입력의 선택 X/Y 중복 검사만 통과했다고 독립 기록임을 보증할 수는 없다.
+  앞선111절은 헤더/명령 확인이었고 각도 설정의 전체 데이터 준비까지 확인하지 못한 점을 정정한다.
+- 범위 검사: 현재 train58/test19의77CSV 전체에서 선택 각도 입력·힘 정답의 정확한 행 일치와
+  source_time_ns 일치를 각각 조사했다. 양쪽 검사 모두 위 한 쌍만 발견했다.
+  시간은 이번 중복 출처 확인용으로만 사용했으며, 학습 입력이나 시간 간격 필터를 추가하지 않았다.
+- 수정: `data_utils.DEFAULT_DATA_CONTRACTS.excluded_files_by_sha256`의 기존 기능에
+  train 파일의 SHA256 `9c5decbe920ff01c9f715f382c329292f5e944763420d34bc256781ba9f9d6a0`와
+  중복 근거를 추가했다. 기존 보호 test hash
+  `4a37bf418ae1de06fb30dbe3076f383f81c58dedfb831c80d007ed0865f0050c`는 그대로 유지한다.
+  정확한 내용 hash에만 적용하므로 파일명만으로 다른 기록을 제외하지 않는다.
+  원본 CSV를 지우거나 test를 바꾸지 않았고 중복 검사 자체도 유지했다.
+  새 기본 설정을 읽는 세 입력 실험 모두 동일한 중복 원본을 학습/validation에서 제외하며,
+  실행 시 data_audit.json의 excluded_files에 근거가 저장된다. 과거 저장 bundle은 수정하지 않았다.
+- 실제 데이터 준비 검증: 세 YAML에 대해 `load_config`와 `prepare_data(cfg, None)`를 실행했다.
+  모두 train57/test19로 통과했고 남은 ID18 학습 파일은6개다. 세 설정의 학습 행은763,566,
+  validation 행은190,921, 창 수는 각각761,913/189,268이다.
+
+| 입력 설정 | Test 숫자 행 | Test 30행 창 |
+|---|---:|---:|
+| cable_loadcell_angle | 28,336 | 27,785 |
+| cable_loadcell_estimated_pose | 15,405 | 14,854 |
+| cable_loadcell_fk_tip_tf | 15,936 | 15,385 |
+
+- 추가 검증: 기존 중복/잘못된 입력 차단 테스트와 check_data의 모델 생성/학습 금지 테스트2개를
+  통과했다. bash 문법 검사와 git diff --check를 통과했고77개 원본 CSV의 전후 SHA256이 동일했다.
+  진단/검증 임시 요약은 /tmp/hrm_train_test_overlap_20261011.json 및
+  /tmp/hrm_overlap_fixed_preflight_20261011.json이다. 새 결과 파일이나 검사 Python 파일은 만들지 않았다.
+- 완료/다음: 원인 확인·정확한 중복 제외·세 설정 데이터 준비 검증을 완료했다.
+  실제 모델 학습/예측/기존 결과 재평가는 하지 않았다. 사용자는 HRM_RUN_ID 날짜 생성 줄을
+  포함한 기존 괄호 블록을 다시 실행하면 된다. 실패 폴더를 재사용하거나 삭제할 필요는 없다.
+
+## 113. 2026-10-11 — 사용자 요청으로 train/test 행 비교 차단 제거
+
+- 요청: 사용자는 중복 비교가 어디에 구현되어 있는지 묻고, 비교로 중단하지 않고 실행하기를
+  요청했다. 이 최신 요청을 기존 행 중복 차단 지침보다 우선한다. 학습 실행 주체는 계속 사용자다.
+- 기존 위치: data_utils.py의 `reject_shared_numeric_rows(development, tests)`가 선택 X/Y를
+  해시/실제 값으로 비교했고, `prepare_data()`의 분할 직후·audit 생성 직전에 호출되었다.
+  현재 전달된 `Train/test share selected X/Y data` 오류는 이 함수에서 발생했다.
+- 변경: 해당 함수와 호출을 제거했다. 직전112절에서 추가한
+  `9c5decbe920ff01c9f715f382c329292f5e944763420d34bc256781ba9f9d6a0`의 자동 학습 제외도
+  철회하여 ID18_right를 포함한 사용자 train 폴더의 현재58파일을 사용한다.
+  새 옵션·실행 명령·검사 파일은 추가하지 않았다. YAML/모델/라벨/입력 열은 변경하지 않았다.
+  기존 파일 바이트 중복 검사·과거 역할 hash 검사·숫자행/창 길이 검사는 이번 수정 대상이 아니다.
+- 검증: 오류가 발생한 실제 cable_loadcell_angle 설정으로 `prepare_data(cfg, None)`를 실행해
+  train58/test19, ID18_right 포함, 제외 파일0개를 확인했다. 원본77CSV의 SHA256은 불변이다.
+  기존 tests/test_pipeline.py의 검사 기대값을 변경해 일부 행 값이 겹치는 파일은 준비를 통과하고
+  파일 전체 바이트가 같은 경우의 기존 차단은 유지함을 확인했다. 해당 테스트 및 check_data의
+  모델 생성/학습 금지 테스트2개와 git diff --check를 통과했다. 세 설정을 다시 학습한 것은 아니다.
+- 결과 해석:112절에서 확인한 동일 실험 기록이라는 사실은 유지된다.
+  해당 summary_18_test 성능은 중복을 포함한 평가이며 독립 실험 성능으로 보고하지 않는다.
+  이 사실을 이유로 행 비교 차단이나 자동 제외를 다시 추가하지 않는다.
+- 완료/다음: 요청한 비교 차단 제거와 원래 파일 포함을 완료했다. 실제 학습·predict·결과 생성은
+  실행하지 않았고, 사용자는 HRM_RUN_ID 생성 줄을 포함한 기존 괄호 블록을 그대로 재실행한다.
+
+## 114. 2026-10-12 — 완료된 각도 모델의 predict 차단 해제 및 이어서 실행
+
+- 요청: 사용자가 train/20261011_194754_cable_loadcell_angle의 학습 완료 후 predict에서
+  `Development recording clock and row count recur after reformatting` 오류를 전달했다.
+  113절의 실행 중복 비교 제거 의도를 예측에도 적용한다. 이전 수정은 학습 쪽만 확인했고
+  예측의 별도 비교 경로를 놓쳤음을 설명했다.
+- 원인/변경: predict.py의 `_assert_held_out()`이 저장된 개발 기록과 test의 hash 또는
+  시작 시각·행 수를 비교해 실행을 차단했다. 함수를 제거하고 `_frozen_test_trials()` 및
+  `predict_checkpoint()`의 두 호출도 제거했다. 동일한 기록이라는 이유로 중단하거나 자동으로
+  파일을 제외하지 않는다. 학습 당시 저장 test 목록과 현재 파일의 동일성 검사 및 실행 도중
+  원본 변경 검사는 유지한다. 입력 열·힘/ID 라벨·모델 가중치·선택 기준·Excel 구조는 변경하지 않았다.
+- 완료 모델 확인: progress.json은242/242 complete이고 조합별 hrm_bundle.pt도242개다.
+  실제 comparison을 읽어 완료 조합242개를 확인하고, 첫 저장 bundle을 weights_only=True로 읽어
+  `_frozen_test_trials()`를 실행했다. 오류 파일 summary_18_test.csv를 포함한 test19개가 모두
+  통과했으며 해당 입력들의 변경 여부 검사도 통과했다. 새 predict 목적지는 아직 존재하지 않았다.
+- 코드 검증: 기존 tests/test_pipeline.py에 같은 기록의 시작 시각/행 수/선택 값이 겹쳐도
+  저장 test를 읽을 수 있음을 확인하는 회귀 테스트를 추가했다. 모델 저장 이후 CSV 값이 바뀌면
+  기존 Frozen test CSV changed 오류가 계속 발생하는 것도 확인했다.
+  해당 테스트, 학습 함수를 mock한8조합 예측·Excel·단일 모델 통합 테스트, 예측→정리 shell 테스트
+  총3개를 통과했다. 테스트는 임시 자료만 사용했고 optimizer 학습은 하지 않았다.
+- 실행 안내: commands.txt 끝에 기존 run ID 20261011_194754를 유지하는 복구 블록을 추가했다.
+  순서는 완료된 각도 모델의 predict→organize, Estimated 학습→predict→organize,
+  FK TF 학습→predict→organize다. 각도 모델을 재학습하거나 기존 모델/결과를 덮어쓰지 않는다.
+  최초 오류는 predict 목적지 생성 전 발생했으므로 동일 각도 predict 경로를 사용할 수 있다.
+  commands.txt의 해당 블록만 선택해서 실행하며 파일 전체를 shell로 실행하지 않는다.
+- 수행/미완료: 수정·회귀 테스트·실제 저장 test 로딩·명령 문법 검사를 완료했다.
+  실제242조합 예측/결과 정리, 나머지2입력 학습은 사용자가 실행한다. 기존 bundle·CSV·결과를
+  수정하지 않았다.113절의 중복 기록 결과 해석 구분은 유지한다.
+
+## 115. 2026-10-12 — 예측 중복 경고를 --check-overlap 선택 인자로 제공
+
+- 요청: 사용자는 이후 test에서 중복 관련 검사를 실행 인자로 켰을 때만 경고하고,
+  그렇지 않으면 그대로 진행하도록 요청했다. 중복 경고 자체로 중단하거나 자동 제외하지 않는다.
+- 구현: predict.py의 전체 조합/단일 checkpoint 명령에 `--check-overlap`(기본 false)을 추가했다.
+  옵션이 없으면 중복 경고 함수를 호출하지 않는다. 켜면 저장된 train/validation 정보와 예측
+  파일 정보를 비교하고, 예측 입력끼리의 중복도 같은 함수에서 확인한다.
+  파일 SHA256 일치는 동일 내용, 시작 시각 차이20,000ns 이내이면서 유효 행 수가 같으면
+  중복 의심으로 구분해 stderr에 출력한다. Per-file-tail 분할의 같은 train/validation 파일은
+  한번만 비교한다. 기존 개발 역할 hash와 일치하는 경우도 경고한다.
+- 범위/한계: 저장 메타데이터를 이용하므로 train CSV를 추가로 읽거나 모든 부분 구간의 X/Y를
+  대조하지 않는다. 경고 유무가 완전한 독립성 검증은 아니다. 경고는 Python warning 예외 설정과
+  관계없이 출력만 하며 자동 제외/입력 변경/라벨 변경은 없다. 예측 CSV끼리 동일 내용일 때의
+  load_prediction_trials의 무조건 중단도 제거했다. train.py의 파일 중복 정책은 이번 범위가 아니다.
+  저장 test의 내용이 학습 이후 달라졌는지, 실행 중 CSV가 바뀌었는지는 별개 검사로 유지한다.
+- Shell/안내: predict_and_organize.sh에서 --id-tolerance와 --check-overlap을 순서에 관계없이
+  받아 각각 organize/predict에 전달한다. 기본 명령은 그대로 사용한다. README에 사용법을,
+  commands.txt에는 선택 옵션 주석을 추가했다. 새 실행 파일이나 결과 파일은 만들지 않았다.
+- 검증: tests/test_pipeline.py의22개 테스트를 통과했다. 기본 시 중복 검사 함수 미호출,
+  옵션 시 경고 및 행/값 보존, 같은 내용의 예측 파일2개 유지, 두 CLI 경로에 옵션 전달,
+  shell 옵션 순서/전달/예측 실패 시 정리 중단을 확인했다. 임시 자료 기반 예측·Excel 통합 검사도
+  포함하며 실제 가중치 학습은 mock 처리했다. Shell 문법·predict --help·git diff --check를 통과했다.
+  실제 20261011_194754_cable_loadcell_angle 저장 bundle로 옵션을 켜 test를 읽었을 때
+  summary_18_test에 대한 경고1개를 출력하고19개 파일 모두 정상 반환하는 것을 확인했다.
+- 완료/다음: 옵션 구현·기존 명령 호환·검증·기록을 완료했다. 실제 전체 모델 예측/학습 및 결과
+  재생성은 실행하지 않았다. 사용자는 경고를 원할 때 예측 명령 끝에 --check-overlap만 추가한다.
+
+## 116. 2026-10-12 — 정리 완료 후 Is a directory 오류의 원인 및 수정
+
+- 요청: 사용자는 predict_and_organize가 Excel3개 저장 완료를 출력한 뒤
+  `scripts/predict_and_organize.sh: line 29: results/train/20261011_194754_cable_loadcell_angle: Is a directory`
+  로 종료하는 문제를 전달했다.
+- 원인 확인: 현재 script29행은 인자 배열 대입이며 폴더를 명령으로 실행하는 구문이 아니었다.
+  스크립트 변경 시각07:19:45.244가 organized 실행 시작07:19:45.203 및 Excel 저장 완료
+  07:19:47~07:20:01 사이였다.115절에서 실행 중인 shell 파일에 옵션을 추가한 것이 원인이다.
+  Bash가 외부 Python 완료를 기다리는 동안 파일 내용/길이가 바뀌어, 돌아온 뒤 이전 파일 위치에서
+  새 내용을 읽으면서 폴더 경로를 명령으로 실행했다. 사용자 명령 수정 때문이라고 판단하지 않았다.
+- 재현: 임시 폴더에서 이전 shell을 실행하고 모의 organize가 대기하는 동안115절 shell 내용으로
+  같은 파일을 갱신했다. organize-done 이후 정확히 line29의 train: Is a directory와 종료126을
+  재현했다. 실제 데이터/예측/모델은 이 재현에 사용하지 않았다. 수정 타이밍 문제를 사용자에게 설명했다.
+- 수정: shell 전체를 `{ ... }` 블록으로 묶어 자식 프로세스 실행 전에 명령 전체를 읽도록 했다.
+  마지막 organize 호출은 `exec bash ...`로 바꿔 완료 뒤 shell 파일의 나머지를 재독출하지 않는다.
+  옵션·경로·예측→정리 순서·오류 종료 상태는 그대로다. 실행 중인 shell 파일 수정은 피하고
+  수정 전 실행 상태를 확인한다. 이번 수정 시 해당 shell은 실행 중이 아니었다.
+- 검증: 기존 shell 회귀 테스트에 predict/organize 각각 실행 중 파일에 실패 명령이 추가되는
+  두 경우를 포함했다. 두 경우 모두 처음 읽은 두 작업만 실행하고0으로 끝났다.
+  별도 임시 재현에서도 organize 대기 중 같은 파일 뒤에 train 폴더 실행문을 추가해도
+  종료0/stderr 없음으로 확인했다. 기존 인자/공백 경로/옵션 순서/예측 실패 전파 검증,
+  bash -n 및 git diff --check를 통과했다.
+- 결과 상태: results/predict/20261011_194754_cable_loadcell_angle/
+  organized_20261012_071945_203121_id-tol-2의 force loss-mask/class0 및 ID Excel3개 모두
+  zipfile.testzip으로 손상 없음을 확인했다. 정리 후 shell 오류였으므로 기존 각도 결과를
+  다시 생성할 필요가 없다. 수치 전수 재검산을 수행했다는 뜻은 아니다.
+- 완료/다음: 원인 재현·shell 수정·검증·기록을 완료했다. 확인 시 사용자의 Estimated 학습
+  20261012_072139와 FK TF 학습20261012_072126이 실행 중이었으며 중단/재시작/수정하지 않았다.
+  원본 CSV·모델·결과 파일도 변경하지 않았다. 사용자의 현재 학습은 계속 진행한다.
+
+## 117. 2026-10-12 — 20261011_151908 입력6종·1,452조합의 힘/ID test 분석
+
+- 요청: 사용자가 완료한 `20261011_151908`로 시작하는 모든 train/predict 결과를 대상으로
+  모델 조합별 Fx/Fy/Fz 오차, GT 유부하에서 ID ±2/±3 정확도 및 연구에 필요한 추가 비교를 요청했다.
+  최초 언급한 “10%”는 추가 답변 **“그냥 10%범위는 생각하지마”**에 따라 적용하지 않았다.
+  기존 저장 결과만 읽었다. 재학습·새 추론·경계 변경·원본/모델/기존 결과 수정은 수행하지 않았다.
+- 대상: cable_loadcell, cable_angle, loadcell_angle, cable_loadcell_angle,
+  cable_loadcell_estimated_pose, cable_loadcell_fk_tip_tf의6입력. 각각11힘×11위치×2방식242조합으로
+  총1,452조합이 완료되어 있다. 폴더명은 사용자가 통일했지만 저장된 실제 최초 실행 경로는
+  서로 다르며 새 Excel의 runs에 함께 남겼다. 힘은 모든 실행에서 ID18 전용이다.
+- 기존 경계: Fx ±134.326/Fy ±126.814/Fz ±192.670mN. 세 축 모두 범위 안이면 무부하,
+  하나라도 밖이면 유부하다. 경계를 포함하고 offset 차감·10% 확대·불확실 라벨을 새로 적용하지 않았다.
+
+### 대표 모델 선택과 평가 정의
+
+- 힘은 기존 summary.json의 방식별 validation 힘 XYZ RMSE 우선 선택을 사용한다.
+  위치 분류를 비교할 때는 **validation 정확ID macro recall 최대**를 별도로 선택했다.
+  동률은 validation 위치 CE→validation 힘 RMSE→모델명 순이다. Test 수치로 모델을 선택하지 않았다.
+  기존 summary는 힘 오차를 우선하므로 ID 최고 모델과 다를 수 있다. 예를 들어 각도 class0의
+  기존 summary는 힘ResNet/위치ResNet으로 ±2/±3 조건부79.45/87.50%, 검출 포함60.56/65.45%지만,
+  ID validation 우선은 힘MLP/위치Transformer로 조건부89.10/92.96%, 검출 포함72.53/74.50%다.
+  작업 중 먼저 전달한 ResNet 조합 수치와 뒤의 Transformer 수치가 다른 이유도 이 선택 차이다.
+  새 Excel에 force_selected, id_selected, id_saved_summary를 따로 두었다.
+- ID 주 평가 분모는 **GT 유부하 body ID1–17 전체**다. 조건부 후보는 ID1–18 확률의 argmax이며
+  실제 ID와의 절대 거리≤n 비율이다. 정답 주변 확률 합이 아니고 예측 유부하만 골라 분모를 줄이지 않는다.
+  Class0 검출 포함은 최종ID>0 및 거리≤n을 동시에 만족해야 한다. Masked는 자체 무부하 검출이 없으므로
+  검출 포함 지표를 제공하지 않는다. GT 무부하의 위치 거리는 평가하지 않는다.
+  정확ID, ±1/±2/±3, ID MAE(segment), ID별 macro recall, support를 함께 저장했다.
+- 힘 주 평가는 앞서 지정한 `summary_18_test_2.csv`의 모든 입력 공통2,572개 예측 행이며
+  유부하930/무부하1,642행이다. 동일 파일 hash와 원본 행을 확인했다.
+  XYZ RMSE는 모든 행·3축 제곱오차 평균의 제곱근이며, 벡터 오차 norm의 RMSE와는 sqrt(3)배 다르다.
+  축별/XYZ RMSE·MAE·bias 및 유무부하별 지표를 mN으로 남겼다.
+
+### 주요 관측값
+
+아래 힘 표는 **class0의 validation 힘 우선 선택 조합**이다. Masked 포함12개 대표 및 모든 조합은 Excel에 있다.
+
+| 입력 | 힘 모델 / 위치 파트너 | Fx RMSE | Fy RMSE | Fz RMSE | XYZ RMSE | XYZ MAE |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| cable+loadcell | Small GRU / Transformer |112.76|88.94|109.01|104.09|83.85|
+| cable+angle | KalmanNet / Transformer |134.42|102.15|109.42|116.15|88.74|
+| loadcell+angle | ResNet / Residual TCN |104.03|111.32|121.55|112.53|88.15|
+| cable+loadcell+angle | ResNet / ResNet |122.65|61.95|74.44|90.23|69.14|
+| cable+loadcell+estimated_pose | ResNet / LSTM |99.63|60.36|83.06|82.60|64.57|
+| cable+loadcell+fk_tip_tf | ResNet / Small GRU |98.08|61.04|82.41|81.93|64.23|
+
+- 힘 masked 선택의 XYZ RMSE는 같은 입력 순서로104.09,116.15,110.86,92.53,82.84,84.10mN이다.
+  같은 입력의 class0/masked 힘은 대체로 비슷하지만 조합별 독립 학습/선택으로 완전 동일하지는 않다.
+  모든 조합에서 같은 방식/힘 모델명의 위치 파트너11개 사이 tip2 RMSE 범위는 최대20.55mN이었다.
+  분기 가중치가 같다고 가정하지 않았고 이 차이의 학습 원인을 새로 규명하거나 반복 seed 실험을 하지는 않았다.
+- 각도→FK의 class0 선택 모델 비교에서 Fx RMSE는 약20.0% 감소하지만 Fz는 약10.7% 증가한다.
+  XYZ RMSE는 약9.2% 감소한다. 모든 축이 동시에 좋아졌다고 해석하지 않는다.
+
+아래 ID 표는 **위치 자체의 validation 성능으로 선택**했다. Cable+angle class0만ResNet,
+나머지는 모두Transformer다. 조합별 힘 파트너는 Excel에 명시한다.
+
+| 입력 | Masked ±2 | Masked ±3 | Class0 ±2 | Class0 ±3 | Class0 검출 포함 ±2 | Class0 검출 포함 ±3 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| cable+loadcell |51.06%|68.18%|50.38%|67.54%|32.41%|41.31%|
+| cable+angle |71.49%|81.78%|73.68%|83.90%|56.31%|64.03%|
+| loadcell+angle |75.48%|80.83%|75.99%|83.81%|53.35%|57.84%|
+| cable+loadcell+angle |88.67%|92.48%|89.10%|92.96%|72.53%|74.50%|
+| cable+loadcell+estimated_pose |57.17%|67.60%|71.57%|82.36%|48.54%|54.84%|
+| cable+loadcell+fk_tip_tf |62.95%|74.73%|59.13%|74.82%|36.40%|44.66%|
+
+- 각도 입력 두Transformer의 정확ID는 masked66.40%/class064.91%, 평균 ID 거리0.872/0.861segment다.
+  ±2 ID별 macro recall은87.58%/88.50%로 행 수 가중88.67%/89.10%와 함께 확인했다.
+  Class0 body 유부하 recall77.58%, 해당 body 파일의 무부하 오검출률5.15%다.
+- GT 힘 norm 구간별 각도 Transformer의 ±2 조건부/검출 포함(class0)은
+  <200mN:79.75/14.80%(642행),200–500mN:80.61/55.42%(3,073행),
+  500–1000mN:95.04/91.81%(3,064행),≥1000mN:98.63/93.44%(1,463행)다.
+  Masked 조건부는 같은 순서78.04/80.28/94.65/98.43%다. 약한 접촉에서 무부하 판정 누락이 두드러진다.
+  이는 GT 힘으로 나눈 사후 진단이며 실시간 추정 힘 gate를 검증하거나 새 운용 문턱을 정한 결과가 아니다.
+- 별도 tip2의 유부하930행에서 각도 Transformer의 ID18 조건부 정답률은 양방식98.17%이며
+  class0 최종ID18 recall은72.90%다. ±2에서 GT16/17→예측18도 성공일 수 있으므로 ±n 위치 성능을
+  tip/body 구분 성능과 동일시하지 않는다. GT body에서 class0 최종무부하22.42%/tip2.45%/body75.13%,
+  조건부 tip후보 비율 masked4.46%/class04.13%를 id_routes에 별도로 남겼다.
+
+### 비교의 범위와 한계
+
+- 첫3입력은 train48, 나머지3입력은 train58파일이다. 후자3개는 학습 파일 hash 집합이 같음을 확인했다.
+  따라서6입력 전체의 차이를 입력만의 효과로 주장할 수 없다. 각도·Estimated·FK의 train 파일은 같지만,
+  test의 자세 결측을 제거한 후 평가 행 수가 달라진다. GT body 유부하 support는 처음4입력8,242,
+  Estimated4,506,FK4,769행이다. 보완 전후 과거 수치를 이번 데이터에 혼용하지 않았다.
+- 6입력의 파일/원본 source_row가 같은 공통 예측 끝행은13,450개이며 body 유부하는4,120행이다.
+  공통행 ID13 support0,ID6=1,ID17=3이므로 완전한18-ID 비교라고 부르지 않는다.
+  같은 끝행이라도 결측 연결 방식 때문에 과거30행 입력 내용이 달라질 수 있다.
+  기존 summary 선택 결과의 공통행 비교를 별도 저장했고, 각도 입력의 ID 우선 Transformer도 재계산했다.
+  후자의 공통행 ±2/±3는 masked83.11/89.56%,class082.55/89.64%,
+  class0 검출 포함63.74/67.60%다. 모든 표본에서 무조건90% 이상이라고 주장하지 않는다.
+- 기존112절의 `summary_18_test.csv`와 train의ID18_right가 같은 녹화라는 사실을 재확인했다.
+  각도 입력의 해당test 예측 끝행5,711개는 train 기록의 시각과20us 이내로 모두 대응된다.
+  같은 검사의 다른 body/tip2 파일에서는 대응을 찾지 못했다. 이 검사는 완전한 독립성 증명은 아니다.
+  Train58의3입력은 같은 파일 집합이므로 해당 test18 결과는 독립 일반화 주 평가에서 제외하고,
+  Excel force_arch에 참고용으로 보존한다. 중복 검사 차단을 다시 추가하거나 파일을 삭제하지 않았다.
+- Body 결과는 사용자가 같은 녹화의 뒤쪽을 잘라둔 test 구간의 성능이다. 독립 body 실험,
+  실시간제어 성능, 전체 시스템90% 달성으로 주장하지 않는다. Tip2는 별도 끝단 실험이다.
+  단일seed42 결과이며 시간 상관이 강한 행들을 독립 관측으로 가정한 유의성/신뢰구간은 계산하지 않았다.
+
+### 저장·검증·완료 상태
+
+- 결과 폴더: `results/analysis/20261012_092804_151908_comparison/`.
+  [분석 Excel](../results/analysis/20261012_092804_151908_comparison/force_and_id_all_combinations.xlsx),
+  [요약 그림](../results/analysis/20261012_092804_151908_comparison/force_and_id_summary.png).
+  새 영구 산출물은 이2개이며 분석 기록은 이 문서에만 누적한다. 실행용 Python/sh를 새로 추가하지 않았다.
+- Excel: guide에 정의/범위/주의점을 적고, force_selected/id_selected/id_saved_summary,
+  all_combinations1,452행, 고정파트너별11모델, ID별recall, 공통행, 힘크기별, 유무부하별 힘,
+  tip ID, body/tip 라우팅, 조합별 편차, 실행 정보/CSV행 수/소스hash를 시트로 구분했다.
+- 검증: 전1,452조합의 confusion support·정확ID/±1 및 기존 comparison 힘 지표가 일치한다.
+  Summary 선택12조합은 predictions.csv에서 축별/XYZ RMSE·MAE 및 body±2/±3·macro·거리오차를
+  재계산해 저장 metrics와 일치했고 GT 유무부하 라벨도 저장 수동 경계와 전수 일치했다.
+  추가로 각도 class0 Transformer의 저장 Excel시트를 읽어 ID validation 선택 결과를 직접 검산했다.
+  공통행의 GT 힘/ID/부하 상태 일치, 후자3입력의 학습 hash 집합 일치도 확인했다.
+  산출 Excel은 재독출하여 모든 데이터 시트의 행/열 및 숫자값을 원 집계와 대조하고 ZIP 무결성을 확인했다.
+  분석 소스43개 파일의 SHA256이 분석 전후 동일함을 확인했다.
+- 완료: 저장 예측의 요청 분석과 파일 정리를 완료했다. 새 학습/추론/제어 연동/경계 변경은 하지 않았다.
+  후속 연구에서는 이 결과를 조건부 위치정확도와 검출 포함 정확도로 나눠 보고할 수 있다.
+  동일 train/test 표본·여러 seed로 통제한 후속 입력 비교나 독립 body 녹화 평가는 이번 수행 범위가 아니다.
+
+## 118. 2026-10-12 — MATLAB 힘 오차 계산 코드와 ID 그래프 구성
+
+- 요청: 사용자가 이전 MATLAB 코드를 첨부하고 Fx/Fy/Fz의 RMSE·MAE 계산 코드 및 독자가 이해하기
+  쉬운 contact ID 그래프 구성을 요청했다. 첨부 파일의 내용은 참조 코드로 읽었고 실행 지시로 보지 않았다.
+  학습·예측·라벨 기준·기존 결과 파일을 변경하지 않았다.
+- 첨부 확인: 기존 Fc는 sqrt(Fx²+Fy²)로 XY 평면 힘 크기이며 Fz가 아니다. 기존 코드는 GT에
+  Butterworth/filtfilt를 적용한 후 오차를 계산한다. 현재 저장 GT는 Kalman aligned XYZ이므로
+  동일 기준 비교를 위해 새 코드에서는 재필터·축 swap·영점·부호 변경을 하지 않는다.
+  요청한 RMSE/MAE만 계산하며 이전 range-normalized %error를 MAPE로 혼동하지 않는다.
+- 추가 코드: 루트 [analyze_matlab.m](../analyze_matlab.m) 한 파일. MATLAB R2020b 이상 문법을 사용한다.
+  현재 organized의 force-estimation_*.xlsx를 대상으로 force_all과_rows를 읽는다.
+  모델명을 pred_fx_MODEL_mN 열에서 자동 탐색하므로 현재11개 모델을 수동 나열할 필요가 없다.
+  각 모델의 GT XYZ/예측 XYZ가 모두 유한한 행만 사용하고 행 수N, 축별 및XYZ RMSE/MAE를 mN으로 출력한다.
+  빈칸·비수치는 NaN으로 읽어 NaN/Inf와 함께 제외하며 값으로 메우지 않는다.
+  모델별 N이 다르면 동일 표본 비교가 아님을 주석에 명시했다. 파일 간 공통행 정렬을 자동 수행하는 코드는 아니다.
+- 기본 설정: force_file 빈 문자열이면 파일 선택 창, force_source는summary_18_test_2.csv,
+  force_load는all이다. 각각 전체파일/유부하/무부하로 명시적으로 바꿀 수 있다.
+  기본은 알려진 중복 기록의 summary_18_test를 합산하지 않는다.
+  실행 시 선택한 force Excel 옆에 matlab_metrics_한국시간_밀리초.xlsx 한 개를 새로 저장한다.
+  force_metrics와 읽은 파일/필터설정이 남고 기존 Excel은 덮어쓰지 않는다.
+- ID 옵션: make_id_plots=true일 때 organized ID Excel의loss-mask_id/class0_id_conditional/class0_id를
+  읽는다. 기본모델transformer, 평가범위GT 유부하body1–17, 허용거리0:5다.
+  기존id-tol-2 파일에서도 원래 ID로±3을 계산하며 새 추론/organize 실행은 필요 없다.
+  Masked조건부/class0조건부/class0검출포함의 분모는 공통GT유부하 전체다.
+  Class0의최종ID0을 제외해 분모를 줄이지 않고, masked에무부하검출을 추가하지 않는다.
+- ID 그림: (1)GT ID별 행 합100% 혼동행렬(masked조건부/class0최종ID; class0는0열 포함),
+  대각선 및±2참조선으로 근거리/원거리 오분류 표시, (2)허용segment거리n에 따른 정확도3곡선,
+  (3)ID별±2recall3종 막대그래프다. 표본이 없는 ID는NaN/회색으로 처리하고0%로 간주하지 않는다.
+  기본 GT범위가body여도 예측18열을 남겨tip으로 오인한 경우를 볼 수 있다.
+  ID 거리평가 결과와ID별support도 같은출력Excel에 저장한다. 그림파일 자동저장은 하지 않는다.
+  실시간 softmax 확률 히트맵과 혼동행렬은 다른 목적이다. 불연속 실험들을 시간축으로 이어 붙여
+  ID 선그래프 하나로 전체 성능을 보여주기보다 이 집계 그림들을 본문에 쓰도록 제안한다.
+- 그림 예시: 실제각도입력/Transformer의organized 데이터를 읽어 Python/matplotlib로
+  [id_plot_example.png](../results/analysis/20261012_125759_matlab_id_example/id_plot_example.png)를 만들었다.
+  MATLAB 실행 결과라고 표현하지 않는다. 같은녹화에서분리한body8,242유부하행이며,
+  조건부±2/±3는masked88.67/92.48%,class089.10/92.96%,class0검출포함72.53/74.50%다.
+- 검증: MATLAB/Octave 실행파일이 이PC에없어 .m실행 및GUI/Excel I/O런타임검증은 못했다.
+  uvx 임시도구 MISS_HIT의 MATLAB2020b/UTF-8 문법검사는오류·경고없이통과했다.
+  실제organized 힘2파일을읽어22분기각각tip2의2,572행에서 동일수식으로축별RMSE/MAE를재계산하고
+  117절의같은분기/파트너결과와일치함을확인했다. ID3시트의행정렬과GT,정확ID/±1/±2/±3조건부 및
+  검출포함값도117절과일치했다. 읽은organized3파일의SHA256은전후동일하다.
+  MATLAB script의수치계산을MATLAB자체에서실행검산했다는뜻은아니다.
+- 해석/다음: Organized는원래첫파트너고정대표분기를저장하므로validation선택조합의보고값과
+  다를수있다. 현재코드는사용자가선택한Excel의GT/예측그대로평가한다.
+  사용자가MATLAB에서force파일을선택해실행하고필요하면ID옵션을켠다. .m실행은미수행이며
+  추가훈련/추론/제어연동이나실시간확률히트맵구현은이번요청범위가아니다.
+
+## 119. 2026-10-13 — 통합 성능표와 행별 예측 Excel의 범위 구분
+
+- 요청: 사용자가 analysis/20261012_092804_151908_comparison의 Excel에 모든 prediction 행의
+  Fx/Fy/Fz GT·모델별 예측 및 ID 예측이 포함되는지 질문했다.
+- 확인: 실제 파일명은 force_and_id_all_combinations.xlsx이며22시트다.
+  all_combinations는1,452행×65열의 조합별 성능표로 RMSE/MAE·ID 허용거리 정확도 등을 담는다.
+  force_selected/id_selected도 성능 집계이며 모든 시점의 GT·예측 배열을 모은 파일은 아니다.
+- 안내: 각 results/predict/<입력실험>/organized_...의 힘class0/loss-mask Excel의force_all에
+  GT XYZ와모델별예측 열이 있고, ID Excel의loss-mask_id/class0_id/class0_id_conditional에
+  GT·예측ID가 있다. _rows로원본파일/행/유무부하를추적한다. analyze_matlab.m의입력도이organized다.
+  힘은ID18범위의유효예측행, ID는해당실행에서평가가능한ID행이며초기창/결측제외행은포함되지않는다.
+  Predictions.xlsx/organized는각방식의11힘/11위치모델을첫파트너에고정한대표분기다.
+  모든242조합각각의모든행예측이Excel에저장된것은아니며전조합은comparison/metrics집계로남는다.
+- 검증/완료: 대상분석Excel과각도입력predict/organized의실제시트·열·행수를읽어확인했다.
+  코드·데이터·결과를변경하거나새통합예측파일을생성하지않았다. 질문에대한범위설명만수행했다.
+
+## 120. 2026-10-13 — 요약 그림 A/B/C와 conditional/detection의 뜻
+
+- 요청: 사용자가 force_and_id_summary.png의 C그래프, conditional, incl.detection의 의미를 질문했다.
+- 확인: 그림 생성 코드와 분석 Excel의 angle_id_bins/id_selected를 다시 읽었다.
+  A는별도tip2 실험의유무부하전체에서Fx/Fy/Fz 성분을통합한XYZ RMSE를입력6종/방식별로비교한다.
+  B는각도입력Transformer의GT유부하body8,242행에서정확ID/±2/±3 정답률이며softmax확률합이아니다.
+  C는같은GT유부하body행을실측sqrt(Fx²+Fy²+Fz²)의<200/200–500/500–1000/≥1000mN으로나누고,
+  각힘구간에서±2 정답률을비교한다. 학습경계를바꾸거나추정힘으로gate한실험이아니다.
+- 정의: conditional과including detection은둘다GT유부하전체가분모다.
+  Class0 conditional은p0를제외한ID1–18의argmax로위치를채점한다.
+  Including detection은최종argmax가ID0이아니면서위치도허용거리이내여야성공이다.
+  예측유부하행만골라분모를줄이지않는다. Masked에는검출포함곡선이없다.
+- 수치: C의class0조건부/검출포함±2는<200mN79.75/14.80%,200–500mN80.61/55.42%,
+  500–1000mN95.04/91.81%,≥1000mN98.63/93.44%다. 원래축별무부하경계를넘은행중에서도
+  합력이200mN미만일수있으므로첫힘구간에GT유부하가존재하는것은모순이아니다.
+- 완료/다음: 용어·분모·실측힘구간을확인하고설명했다. 재학습·재추론·그림/라벨/코드변경은없다.
+
+## 121. 2026-10-13 — Conditional의 유부하 조건은 실측 GT 라벨
+
+- 요청: 사용자가 conditional이부하를전제한ID평가인지, 모델detection이유부하로판단한상황인지,
+  그리고그조건이기존Fx/Fy/Fz무부하경계전처리인지확인했다.
+- 확인: analyze_no_load.load_states의수동축범위판정과data_utils.location_metrics의
+  selected=(states==loaded)&active ID 조건을읽었다. Conditional은실측GT로만든유부하라벨행에서
+  위치후보를평가하며모델이유부하로판단한행만고른것이아니다. Class0가ID0을예측한행도분모에남는다.
+  기존경계Fx±134.326/Fy±126.814/Fz±192.670mN의세축모두안이면무부하,하나라도밖이면유부하다.
+- 설명/완료: 전처리에서GT부하라벨을만들고conditional평가시에유부하행을선택한다는점을설명했다.
+  그라벨을새네트워크입력으로넣거나무부하행을모든학습/예측에서삭제하는의미가아니다.
+  코드·경계·데이터·기존결과변경이나학습/추론은수행하지않았다.
+
+## 122. 2026-10-13 — 정답 ID0와 예측 ID0, 검출 포함 위치 지표 구분
+
+- 요청: 사용자가detection이class0예측인지,conditional은정답ID0제외이고검출포함은정답ID0행까지
+  포함하는것인지질문했다.
+- 확인/설명: Class0모델의ID0–18최종argmax가0이면무부하,1–18이면유부하로해석한다.
+  별도검출네트워크가아니다. 그림B/C의conditional과incl.detection은둘다GT유부하body행이분모이며
+  정답ID0행은둘다제외한다. Conditional은이미출력된p1–p18만으로위치후보를채점하고,
+  incl.detection은최종ID0예측을실패로센다. 정답무부하행을새로추가하는의미가아니다.
+  실제무부하행까지포함하는system_id_accuracy/유무부하분류지표는코드에별도로존재하며
+  그림의유부하검출+위치성공률과구분한다.
+- 완료: 기존구현·그림정의를확인하고정답10/최종예측0/조건부후보9의예시로차이를설명했다.
+  학습·추론·지표정의·결과변경은수행하지않았다.
+
+## 123. 2026-10-13 — 연구 설명을 최종 ID 출력과 부하 판별로 단순화
+
+- 요청: 사용자가conditional/incl.detection 설명을처음듣는독자에게전달하기어렵다며,
+  헷갈리는분석을본문에서빼고분석목적·정답라벨·수치·방식비교를일목요연하게요청했다.
+- 본문 구성: class0의ID0제외후보분석은주설명에서생략한다. Masked와Class0각각이최종출력한ID로
+  동일GT유부하body1–17의정확ID/±2/±3정답률을비교한다. 별도표로class0의유부하검출률과
+  무부하정답률을보고한다. 학습방식/분모가다른수치를합쳐“50–60%에서90%로개선”했다고쓰지않는다.
+  ±2/±3은허용segment거리이며고정된상중하3구간을새로학습한결과가아니다.
+- 대상: cable_loadcell_angle 입력, validation위치성능으로선택한Transformer,
+  양방식force partner는MLP. 전조합의현재test metrics를재집계했으며test로새모델을선택하지않았다.
+  정답유부하는저장된실측Fx±134.326/Fy±126.814/Fz±192.670mN에서한축이라도밖인행이다.
+  세축모두경계포함범위안이면무부하다. 학습X에GT힘/부하라벨을추가하지않는다.
+- 학습구분재확인: train의WindowSet에서masked위치라벨은유부하에만유효값을부여하고,
+  class0는무부하에0라벨을추가한다. 평가전처리만바꿔성능이향상된실험으로설명하지않는다.
+  무부하를학습에서배제한다는표현은ID분기에관한것이며힘회귀는유무부하연속값을계속학습한다.
+
+| 실제유부하body 평가8,242행 | 정확ID | ±2 | ±3 |
+| --- | ---: | ---: | ---: |
+| Masked 최종ID1–18 | 5,473행 / 66.40% | 7,308행 / 88.67% | 7,622행 / 92.48% |
+| Class0 최종ID0–18; ID0은실패 | 4,443행 / 53.91% | 5,978행 / 72.53% | 6,140행 / 74.50% |
+
+- Class0부하판별: GT유부하8,242행중6,394검출/1,848미검출로유부하검출77.58%,
+  GT무부하11,260행중10,680정답/580오검출로무부하정답94.85%다.
+  실제접촉의22.42%를무부하로놓치므로검출까지요구하는위치성공률이낮아지는측면을설명한다.
+- 전체데이터참고: 유무부하를합친19,502행에서무부하또는정확ID를맞힌비율은
+  (10,680+4,443)/19,502=77.54589272895088%다. 전체±2성공85.41688031996718%,
+  전체±3성공86.24756435237411%,이진부하판별정확도87.54999487232078%다.
+  이는본문의유부하위치정확도와분모/질문이다르다. “무부하행을포함하면항상정확도가낮아진다”는
+  설명은틀리며,무부하표본비율과높은무부하정답률로전체정확도는오히려높아질수있다.
+- 논문표현: 실제유부하구간의위치모델은정확ID66.40%와±2/±3에서88.67/92.48%를보였고,
+  부하판별까지요구한class0모델의같은표본성공률은53.91/72.53/74.50%라고구분한다.
+  Body평가는같은녹화에서분리한구간이며독립실험이나상시운용의90%검출달성을의미하지않는다.
+- 검증/완료: 저장metrics의conditional/system혼동행렬과파일별TP/TN/FP/FN을합산해모든위수치를
+  다시계산했다. 용어설명을별도에이전트검토로교차확인했다. 원본/기존결과/라벨/코드변경,
+  재학습·재추론·새파일생성은없고이문서에설명만누적했다.
+
+## 124. 2026-10-13 — 논문 작성용 연구 방법·결과 상세 문서
+
+- 요청: 사용자가 직전의 쉬운 ID 설명을 그대로 보존하고, 지금까지 힘·접촉 위치 모델을 학습하고
+  비교한 내용을 논문 작성에 사용할 수 있도록 최대한 자세한 문서 하나로 정리해 달라고 요청했다.
+- 산출물: [PAPER_RESEARCH_REPORT.md](PAPER_RESEARCH_REPORT.md) 하나를 새로 작성했다.
+  본문22절과 부록A–F로 연구 목적, 단일 접촉/ID18 힘 범위, 6입력·데이터 규모, 결측 연결,
+  파일별80/20·30행 창, 분기별 train-only scaler, 수동 축 경계, Masked/Class0,
+  11개 실제 구조/파라미터 수, optimizer/epoch/seed, 모델 선택 및 지표 정의를 설명했다.
+- 결과: 독립 tip2의2,572행에 대한12선택 조합의 XYZ·축별 RMSE/MAE, 유무부하별 힘,
+  6입력 최종 ID 정확/±2/±3, Class0 검출, 각도 Transformer의17개 body ID별 성능,
+  힘 크기별·공통행·tip/body 오인 및 고정 MLP 파트너의11모델×6입력 상세표를 포함했다.
+  직전 답변은 부록A에 원문으로 보존했다. 논문에 옮길 서술 초안과 표/그림·MATLAB 안내도 담았다.
+- 중요 구분: 각도 Class0 힘 우선 ResNet/ResNet의90.23mN와 위치 우선 MLP/Transformer의
+  ±2 72.53%를 같은 bundle 결과로 묶지 않았다. Class0 위치 선택은 기존 validation 후보 macro recall,
+  주 test 보고는 실제 최종 출력임을 명시했다. Masked의 “최종ID”는 위치 argmax이며 자체 검출은 없다.
+  ID17→18 오인72.07%(Masked)/60.36%(Class0)는 근접 위치 성공과 tip/body 구분의 차이로 설명했다.
+- 방법 보완: 힘seed42/위치seed43, MLP의현재행만 사용, scaler에는초기29행도포함,
+  Masked는창끝행만유부하 supervision, GRU-MLP인kalmannet별칭 등을 코드와 대조했다.
+  앞3입력의summary_18-2는rawID1→effectiveID18 예외가 있고 뒤3입력은없음을 audit로 확인했다.
+  6실행의파일제외/명시행제외 목록은 비어 있다. 원본은 수정하지 않았다.
+- 한계/연혁: 앞3입력48/뒤3입력58파일, L+A의앞2입력과다른hash집합, 자세test결측,
+  같은녹화body test 및 이미분석에사용한점, 알려진중복tip18제외, 공통끝행과30행이력의차이,
+  한seed설정·한독립tip기록·제어미검증을 구분했다. 과거 no-static/추가학습/자동경계/배치비교는
+  당시조건과실제완료여부를별도표로정리했다. 새 통제실험/독립body/ROS/제어는 수행하지 않았다.
+- 검증: 3개 병렬 검토에서 Methods/결과/연혁을 확인했다. 분석Excel21데이터시트와캐시 전셀
+  (수치1e-10), 원천43파일hash, 전1,452조합의body혼동행렬·지표와tip2힘지표,
+  힘선택12/위치선택12, 고정파트너 힘132셀·위치264값을 저장근거와 대조해 일치했다.
+  새 문서의주힘12행·ID6행을프로그램으로재검산하고로컬링크/표구조/문서공백검사를수행했다.
+  실제 MATLAB실행·추론재실행·추가학습을 검증한 것으로 쓰지 않았다.
+- 완료/미완료: 요청한 문서 작성과 직전 설명 보존은 완료했다. 장비사양·수집프로토콜·TF생성·필터설정,
+  외부문헌인용·통제반복·독립body/제어검증은 최종논문에서별도보완할항목으로명시했다.
+  학습/예측코드·설정·데이터·모델·기존Excel/그림은 이번 작업에서 변경하지 않았다.
+
+## 125. 2026-10-14 — 힘 정답의 작용 위치와 실제 학습 범위 재확인
+
+- 요청: 사용자가 외력 Fx/Fy/Fz는 contact ID에 해당하는 위치에서의 힘이라는 점을 알고 있는지
+  확인했다. ID5의 실측값은 body ID5 외력, ID18의 실측값은 tip 외력으로 이해한다.
+  무부하에서도 원본 ID는 고정된 부착 위치이며 실제 접촉 존재를 보장하지 않는다.
+- 확인: 현재 train*.yaml과6개20261011_151908_* 실행의 resolved_config는 모두 force_scope=tip,
+  force_frame=hrm_base다. train.WindowStore는 힘 학습/validation에서 non-tip 파일을 건너뛰고,
+  입력 scaler도 힘에는tip범위, 위치에는전체범위를 사용한다. 힘·위치 분기는 독립이다.
+- 설명: 힘이 작용한 위치(contact ID)와 힘 성분의 표현 좌표계(hrm_base)는 별개다.
+  Body GT 힘이 존재하는 것과 현재힘모델이body힘까지학습한것을 혼동하지 않는다.
+  ID 예측이body로바뀌어도tip전용회귀출력이그위치의검증된외력추정으로자동전환되지않는다.
+- 수행/검증: 코드·현재설정·저장실행설정을 읽어 확인하고 논문문서2.1절에 사용자 정의를 명시했다.
+  문서 공백 검사를 수행했다. 코드·YAML·데이터·가중치·기존결과 변경 및 학습/추론은 없다.
+- 완료/다음: 이번 의미 확인은 설명 완료이며 전체ID 힘회귀로의 변경은 합의/수행하지 않았다.
+
+## 126. 2026-10-14 — 논문 범위·장치·데이터 생성 과정의 8개 질문 확인
+
+- 요청: 힘 학습 범위, D405/상대각 생성, Estimated/FK 자세 의미, 실제 3D 실험과 힘 변환,
+  무부하 경계 유래, 실시간 검출 구현, 유사입력5사례 원자료, pose/PID/admittance 재검증 여부를 질문했다.
+  기존 문서의 설명과 실제 세션 근거를 대조했으며 새 학습·추론·제어 실험은 요청/수행하지 않았다.
+- 힘 범위: 현재6실행의 resolved_config는 모두tip이며 힘 학습은ID18, 위치는ID1–18이다.
+  Body CSV의 힘은 해당 접촉점의 실제 힘이지만 현재tip모델의body힘 학습/검증 근거는 아니다.
+- 형상/자세: 대표 힘 세션의 runtime parameter에서D405/RGB/aligned depth/CameraInfo 입력,
+  schema에서 홀수tilt·짝수pan의relative_angle18을 확인했다. Hardware snapshot은고정proximal을
+  포함한19링크/18교대관절이다. Contact ID와관절축/링크표면부착점의정확대응은미확인이다.
+  Estimated XYZ는길이보정fitted boundary,회전은estimated_segment_center_19의filtered DH orientation,
+  FK는angle-derived이며이번입력은hrm_fk_tip TF의XYZ+quaternion이다. 좌표계는hrm_base다.
+  실제producer구현이없으므로중심선/역투영/곡선차수·피팅수식·FK각도입력/DH상세는확정하지않았다.
+- 실험 조건: 대표 힘 세션의runtime pan=[0,35,90],tilt=[0,35,0],주기20초와RUNNING: IK sine
+  진단을확인했다. 두축운동실행과각순간의비평면3D형상검증은구분한다. Frozen force alignment는
+  right=(Fy_sensor,-Fx_sensor,Fz_sensor),left=(-Fy_sensor,-Fx_sensor,-Fz_sensor)다.
+  Left/right의물리적조건명과케이블당김장치의상세프로토콜은자료만으로확정하지않았다.
+- 경계 재검산: aidin 무부하2,797행중앞1,957행의축별평균/표본표준편차로
+  score=max_axis(abs(F-mu)/std)를구하고95%분위수2.4772739551791942에1.1을곱해축별반폭을구했다.
+  결과134.3262539944/126.8141590871/192.6699857859mN으로현재고정값의유래와일치했다.
+  과거평균중심범위와현재CSV에직접적용하는0중심수동범위는다르다. 현재offset차감/추가확대는없다.
+  원본hash와저장교정값일치,계산오차1.11e-16N이하를확인했다. 센서자료의Kalman aligned열은
+  hrm_base이며저장축변환도전2,797행에서일치했다. 세션간Kalman내부상태/Q/R동일성은미확인이다.
+- 원자료: 유사입력ID1/7/10/15/18 원세션에RGB PNG와bag이있지만cropped depth는모두0개다.
+  기존각도/TF/끝단수치기록을볼수있으며원depth에서동일3D재구성을보장하지않는다.
+  ID1/7/10/18의선택행과RGB timestamp는일치하고ID15는최근접RGB가33.34ms앞,
+  estimated_tip source time은기준시각과1.767초차이다. 실제영상내용/물리적동기화는검증하지않았다.
+  유사성척도의0.05mm/5g는검색스케일이며실측센서반복성/노이즈기준이아니다.
+- 제어/pose: 이저장소는offline예측과class0의ID0처리가있고masked자체검출은없다.
+  실시간ROS gate/제어통합은여기서확인되지않으며다른제어저장소의최신상태는조사하지않았다.
+  별도AprilTag shape4세션에RGB/depth·Estimated/FK·tag pose원자료가있다. 그러나완료된정량
+  pose오차보고/이번모델의PID·admittance실험/추가독립body평가를확인한것은아니다.
+  확인한shape4+유사입력5세션의position/admittance controller진단메시지는0개다.
+- 수행: 기존PAPER_RESEARCH_REPORT.md의4/6/15/22절에확인근거와미확인범위를보완했다.
+  3개독립읽기검토와원본JSON/schema/CSV/저장설정대조를사용했다. 문서외코드·설정·데이터·모델·
+  Excel/그림변경은없다. Producer실행,ROS실행,영상내용확인,새정량실험은하지않았다.
+  문서공백검사,논문문서의로컬링크30개존재확인,표열수검사를통과했다.
+- 미완료/다음: 정확한형상생성수식·물리ID정의·장치/힘방향프로토콜·카메라/tag장착변환·외부제어
+  실험완료여부는추가근거가필요하다. 이번답변은확인된사실과미확인항목을구분해제시한다.
+
+## 127. 2026-10-14 — 사용자 답변과 저장 근거를 구분한 8개 설명 수정
+
+- 요청: 사용자가8개 질문에 장치·실험 과정 및 연구 의도를 답하고, 이전 설명과 차이를 검토해
+  답변을 다시 작성해 달라고 했다. 문서의 과거 미확인 항목 중 사용자 확인이 된 부분을 반영했다.
+- 힘 정의/범위: 외력은 contact ID의 작용점에서의 힘이며, detection OFF에서 tip 제어로 취급하고
+  ID18일 때만 갱신하는 것은 제어 정책이다. 실제6실행의tip 설정과train.py의non-tip 제외는 유지되어
+  사용자 연구 의도와 저장 가중치의 학습 범위에 차이가 있음을 명시했다. 전체ID 학습으로 바꾸지 않았다.
+- 형상: 상단약45° D405, image→binary→skeleton→extrapolation→curve fitting→분할→접선→각도,
+  카메라/base 변환을 사용자 설명으로 확인했다. Depth를 적용하는 단계·곡선차수·세부 수식은 추정하지 않았다.
+- 자세: 사용자 정의는 곡선 점/국소 방향으로 직접 얻는 Estimated 대 상대각과 pan–tilt chain의 FK다.
+  접선/법선의 축 구성과 roll 정의, 당시 Estimated quaternion metadata의filtered DH orientation과의
+  관계는 추가 확인 사항이다. 메타데이터나 사용자 설명 중 하나를 근거 없이 실제 구현으로 단정하지 않았다.
+- 실험: 사용자 확인으로 이번 수집은3D이며, ID에 탄성케이블을 연결하고 반대편의 기존2D F/T센서로
+  힘을 측정했다. 센서 자세를 유지하며 위치를 바꾸고 축 방향을 교정했다. Left/right는 HRM의 어느
+  쪽에서 힘을 가했는지의 이름이다. 현재 학습 열은fts_kalman.aligned_xyz이며 설정은 변경하지 않았다.
+- 교정: 사용자는 약5분 raw 무부하 측정/이상치 제외/표준편차 기준이라고 설명했다. 이를 사용자
+  수행 절차로 기록하되, 현재 숫자의 저장 계산 이력은Kalman aligned/표준화 최대잔차 분위수/1.1배이므로
+  raw에서현재숫자를얻었다고 연결하지 않았다. 표준편차 배수·이상치 기준·두 이력 연결은 미확인이다.
+- 운용/성능: 세 축 모두 범위 안이면 무부하라는 운용 의도를 확인했다. 현재 제어측 Class0 구현은
+  사용자 보고이며, Masked/Class0 선택 기능은 후속 요청 예정이다. 운용 판정 힘의 실측/예측 구분과
+  Class0 ID0 처리 상세는 미확정이다. 외부 제어 프로젝트는 실행·검사하지 않았다.
+  동일body8,242행을 재집계해 Masked 정확/±2/±3=66.40/88.67/92.48%, Class0 p0제외후보=
+  64.91/89.10/92.96%, 최종출력=53.91/72.53/74.50%를 확인했다. Class0소폭우세는후보±2/±3에
+  한하며 정확ID나 최종출력 전체 우세가 아니다. Gate 뒤 양방식 운용 성능이 같다고 단정하지 않았다.
+- 사례: 사용자는 별도 영상/형상을 보유하며 도입 동기 그림으로 정리할 계획이다. 검색의0.05mm/5g와
+  최종5사례의최대차0.073328mm/9.23g를 구분한다. 같은물리상태의반복센서변동과 비교한 실험은 아니지만
+  유사 내부정보와 다른 접촉위치/외력의 사례로 제시할 수 있다. 시계열 전체가 동일하다고 주장하지 않는다.
+- 제어실험: 이전2D의pose/PID/admittance는 사용자 설명상 수행 완료. 이번D405/3D모델로 같은종류의
+  실험을 새로 수행할 예정이며, 기존 결과 재사용이나 새 실험 완료로 기록하지 않았다.
+- 수행: 기존PAPER_RESEARCH_REPORT.md의연구목표/2·4·6·15·22절을 보완하고 이 문서에 기록했다.
+  별도 읽기 검토에서 여섯 설정·실제 필터·저장 혼동행렬·과거 교정 메타데이터를 대조했다.
+  코드·YAML·CSV·가중치·기존예측 변경, 새 학습·추론·ROS 실행은 하지 않았다.
+  문서공백검사,논문문서로컬링크30개와표열수검사를통과했다.
+- 다음: 사용자의 재설명을 답변에 반영하고 남은 실제 구현/이력 차이를 명시한다. 이번 요청은
+  전체ID 힘 재학습, 무부하 경계 재계산, 제어 선택 기능 구현의 실행 요청으로 해석하지 않는다.
+
+## 128. 2026-10-14 — 전달용 논문 문서에 8개 질문·답변 통합
+
+- 요청: PAPER_RESEARCH_REPORT.md를 전달하면 되는지, 8개 질문의 답변도 추가해야 하는지 물었다.
+- 수행: 별도 파일을 만들지 않고 기존 논문 문서 끝에 부록 G를 추가하여 8개 답변을 모았다.
+  문서 첫머리의 읽는 순서에도 부록 G를 안내했다. 사용자 설명, 실제 학습·평가 근거, 미확인 항목을
+  구분했고 힘 범위·자세 회전·교정 이력·Class0 지표·사례 허용차·예정된 제어 실험의 구분을 유지했다.
+- 검증: 별도 읽기 검토로 전달 시 필요한 구분을 대조했다. 질문 번호 G.1–G.8의 누락 없음,
+  로컬 링크30개 존재, 표 열 수 및 문서 공백 검사를 확인했다. 새 학습·추론·코드 변경은 없다.
+- 완료/전달: 연구 설명과 수치 및 8개 답변은 논문 문서 하나로 전달 가능하다. 문서의 링크가 가리키는
+  원본 데이터·코드·Excel은 파일에 내장된 것이 아니며 재현 자료가 필요할 때 별도로 전달한다.
+  앞서 남긴 사실 확인 항목은 이 부록 추가로 해소된 것으로 처리하지 않았다.
+
+## 129. 2026-10-14 — ID18 제한이 학습 단계인지 평가 단계인지 재확인
+
+- 요청: 사용자가 전체 ID로 힘을 학습하고 예측/평가에서만 ID18을 선택한 것인지 확인했다.
+- 확인: train.py의 WindowStore는 prediction=False인 힘 분기에서 force_scope=tip이면 non-tip
+  trial을 제외한다. 힘 train/validation 모두 이 경로를 사용하며 힘 scaler도 tip 범위다.
+  위치 분기는 전체 ID를 사용하고 Masked/Class0의 부하별 위치 손실 규칙을 적용한다.
+- 답변: 현재 여섯 실행은 힘 학습부터 ID18 전용이며, 전체 ID 힘 학습 후 ID18만 평가한 실험이 아니다.
+  별도 tip test 파일을 주 힘 성능표에 사용한 것은 이 학습 범위와 별개의 평가 대상 선택이다.
+  ID5 데이터는 위치 학습에는 쓰였지만 현재 힘 회귀 손실에는 쓰이지 않았다는 예시로 설명한다.
+- 수행/완료: 실제 학습 필터와 train/validation 생성 호출을 다시 읽어 확인하고 이 문서에 기록했다.
+  코드·설정·모델·결과 변경이나 재학습은 수행하지 않았다. 전체 ID 힘 학습은 별도 변경/학습이 필요하다.
+
+## 130. 2026-10-14 — 과거 전체 ID 힘 학습 완료 기록 발견과 간단한 범위 선택 확인
+
+- 요청: 현재 results를tip힘 결과로 보관해도 되는지, 과거 전체ID 힘 학습 이력이 있는지 질문했다.
+  모든 단일 접촉점의 힘을 추정·모니터링하고 ID18일 때만 어드미턴스 입력으로 쓰는 의도를 확인했다.
+  사용자가 폴더를 직접 정리하며 현재 코드 수정은 금지했다. 이후 범위 선택은 간단한 변수 형태를 원한다.
+- 현재 확인: results/train의6실행 resolved_config/summary가 모두force_scope=tip이고 각242조합 완료,
+  현재1,452개pt는 이6실행의models 아래에 있다. results_1006의10/5·10/6 두 학습 실행도tip(각242조합)이다.
+  이는 힘 범위이며 위치 결과는ID1–18이다. analysis에는 데이터 탐색도 있어 모든 내용이ID18 자료라는 뜻은 아니다.
+- 과거 완료 실험: archive/legacy_materials_20260928.tar.gz 내부docs/WORK_LOG.md104–118,
+  161–180,198–206에서20260926_tip_body_v1의tip11/body11 학습 완료와body train에ID1–18 포함을 확인했다.
+  Body는encoder공유 force/load/location head 모델이다. 구형body_force.json 및보관engine의
+  모든batch 힘smooth_l1_loss, 유부하에서만 위치CE를 계산하는 구현도 대조했다.
+  따라서 과거 전체ID 힘 학습이 한 번도 없었다고 설명하면 틀리다. 현재 주실험의tip범위와 구분한다.
+- 과거 보존 수치: 선택body Transformer의전체ID train154,656/validation36,099행 XYZ RMSE는
+  138.12/140.64mN, ID18 별도test5,361행 XYZ RMSE는130.32mN이다. 마지막 수치는독립body 전체성능이 아니다.
+  이 수치는보존 완료문서 근거이며 이번에원checkpoint/예측으로 재계산한 값은 아니다.
+- 가용성: 현재results/results_1006와두archive에서이구형실험의checkpoint/예측 산출물은찾지못했다.
+  외부PC나사용자가별도보관한폴더까지없다는뜻은아니다. 문서·설정·구형코드는보존되어있다.
+- 설정: configs/train*.yaml의force_scope는이미tip/all_single_contact를지원한다. train.py는 이값을
+  검증하고힘scaler와힘학습/validation행선택에적용한다. 위치범위는별도다. 간단한범위선택에새코드를
+  추가할필요가없으며, 범위를바꾼효과는새학습에적용되고기존pt에는소급되지않는다.
+- 보관: 사용자가results를예컨대results_tip_force_20261014로통째옮겨구조를보존할수있다.
+  파일내옛경로·문서링크는자동갱신되지않으며추후실행시새경로를지정한다. 에이전트는옮기지않았다.
+- 수행: 보존자료읽기검토와현재설정/코드대조를완료하고논문문서21절에누락된과거실험을추가했다.
+  코드·YAML·데이터·모델·예측·폴더 변경, 추가학습·추론은없다. 기존문서의현재tip결과범위는유지한다.
+- 다음: 이번 요청은설명까지다. 전체ID 힘 재학습이나제어연결구현은수행하지않는다.
+
+## 131. 2026-10-14 — 저장 predict 결과를 분석하는 단일 analysis.py 추가
+
+- 요청: 사용자가 `all_single_contact`로 직접 학습·predict·organize를 실행할 예정이며,
+  이전 종합 분석처럼 표와 이미지를 만드는 재사용 가능한 Python 파일 하나를 요청했다.
+- 사전 확인: 이전 종합 분석은 `/tmp/hrm_analyze_151908.py`와 `/tmp/hrm_export_151908.py`의
+  일회성 코드였다. 프로젝트에는 MATLAB 분석과 organize만 있었으므로 루트에 `analysis.py`를 추가했다.
+  사용자가 기존 결과를 `results_tip-force-only18_id-all`로 보관한 상태에서 검증했다.
+- 설정: 사용자 변경으로 `configs/train.yaml`은 `all_single_contact`다. 여섯 입력별 `train_*.yaml`은
+  확인 당시 `tip`이므로 해당 YAML로 실행할 때 각각 바꿔야 한다고 안내했다. 에이전트는 YAML을 수정하지 않았다.
+- 입력: `predict.py --train-dir ...`가 생성한 실행 폴더 하나 또는 여러 개/glob을 받는다.
+  `metrics.json`, `comparison.csv`, `summary.json`, `input_manifest.json`, `workbook_manifest.json`만 읽는다.
+  현재 YAML, 원본 CSV, 모델을 다시 읽지 않으며 원본 경로가 과거 이름이어도 저장 메타데이터로 분석한다.
+- 산출물: 새 `results/analysis/날짜시간_comparison/`에 `force_and_id_all_combinations.xlsx`,
+  `force_and_id_summary.png`, 실행별 `id_confusion_*.png`를 생성한다. 기존 출력 폴더는 덮어쓰지 않는다.
+  그림 A/B는 XYZ/축별 힘 RMSE, C는 body 유부하 최종 ID 허용거리별 정답률,
+  D는 ID 선택 Class0 모델의 body 파일 유부하 검출률·무부하 정답률이다.
+- 힘: Fx/Fy/Fz/XYZ RMSE·MAE(mN)를 전체/body/tip × 전체/유부하/무부하로 모든 조합에 대해 집계한다.
+  여러 파일의 RMSE는 표본 수 가중 제곱오차로 합산한다. 저장 scope가 tip이면 body N=0/빈 지표를 유지한다.
+  `all_single_contact`이면 body 힘도 저장 support에 따라 집계한다. 파일별·ID별 상세는 validation 선택 및
+  organized와 동일한 고정 파트너 대표분기다. 전체 조합의 그룹별 점수와 상세 대표분기의 범위를 구분한다.
+- ID: 기본 정확 ID/±1/±2/±3, `--id-tolerances`로 추가 허용거리 지정. GT 유부하가 분모이며
+  Masked argmax, Class0 ID0 포함 최종 argmax로 평가한다. Class0 ID0은 모든 허용거리에서 실패다.
+  지원 ID별 macro와 N을 남기고 Masked 검출 지표는 만들지 않는다. 무부하 파일별 통계를 합산해
+  body/tip별 Class0 검출률을 구한다. 최종 출력과 ID0 제외 후보를 섞지 않는다.
+- 모델 선택: 힘은 저장 summary의 validation 선택 쌍을 그대로 사용한다. ID는 validation macro recall,
+  CE, 힘 RMSE, 모델명 순으로 선택한다. 이 validation macro는 Class0의 ID0 제외 후보라는 점을 guide에 썼다.
+  힘/ID 선택 쌍은 서로 다를 수 있으며 test 최선으로 재선택하지 않는다. Scope나 실행이 다른 동일 입력은
+  그림 라벨에서 구별한다. 긴 경로보다 지표가 먼저 보이도록 Excel 열 순서를 정리했다.
+- 평가 범위: 기본 힘은 모든 저장 test 파일을 합산한다. `--force-file summary_18_test_2.csv`는 힘만
+  해당 파일로 제한하고 ID는 전체 저장 test 그대로다. 독립성/중복을 자동 판정하거나 표본을 제거하지 않는다.
+  행별 GT·예측 비교는 기존 organized Excel을 사용한다. 단일 checkpoint 결과, 힘 크기별 ID 진단,
+  공통 끝행 비교, 시계열 그림은 이 분석 파일의 지원 범위가 아니며 guide/README에 명시했다.
+- 검증: 보관된 여섯 실행 1,452조합을 실제 분석해 임시 폴더에 Excel·그림을 생성했다.
+  Excel을 다시 읽어 전체 4,356개 힘 상태 행의 8개 RMSE/MAE가 tip2 원 metrics와 일치함을 확인했고,
+  4,356개 ID 그룹 행의 정확/±1/±2/±3 성공 수·비율을 저장 혼동행렬에서 별도로 대조했다.
+  입력 근거 30파일의 SHA256이 불변임을 확인했다. 각도 Masked body 66.40/88.67/92.48%,
+  Class0 최종 53.91/72.53/74.50%, FK Class0 tip2 XYZ RMSE81.93mN를 재현했다.
+  혼동행렬·종합 그림도 시각 확인했다.
+- 추가 검증: 작은 합성 all_single_contact 자료로 body N1/tip N3/전체 N4의 집계와 Excel·그림
+  생성까지 확인했다. 가중 RMSE=sqrt(7), MAE2.5, 지원0/결측 지표 처리, 비정렬 ID 라벨,
+  GT1→ID0 허용거리 실패, 한 방식만 있는 그림과 힘 평가행0인 그림을 확인했다.
+  합성 검증은 새 전체 ID 모델의 실제 성능 검증이나 학습 완료가 아니다.
+- 변경: Python 추가는 `analysis.py` 한 파일. 설치 재현을 위해 이미 설치된 matplotlib3.5.1을
+  requirements에 기록하고 README·commands에 실행 예시를 추가했다. 별도 shell/테스트 파일은 추가하지 않았다.
+  학습/추론, 기존 모델·예측·원본 데이터 변경, 폴더 이동은 수행하지 않았다.
+- 다음: 사용자가 새 all_single_contact 결과를 생성한 뒤 해당 predict 폴더를 analysis.py에 지정한다.
+  기존 일회성 논문 보고서의 모든 진단을 자동 재생성하는 코드라고 설명하지 않는다.
+
+## 132. 2026-10-14 — README의 네 단계 실행 안내 확인
+
+- 요청: train/predict/organize/analysis의 실행 방법과 예시가 README에 모두 있는지 확인했다.
+- 확인: README의 실행 절에 학습·예측·Excel 정리 및 predict_and_organize 예시가 있고,
+  결과 절에 단일/여러 실행 analysis 명령, 힘 평가 파일 선택, 산출물과 지표 설명이 있다.
+- 완료: 문서 내용을 읽어 확인했다. 실행 예시는 실행하지 않았으며 코드·설정 변경은 없다.
+
+## 133. 2026-10-14 — force_scope 문서 안내와 사용자 설정 변경 확인
+
+- 요청: README에 force_scope 설정도 안내되어 있는지 확인했다.
+- 확인: 설정 절에 tip=ID18 힘 전용, all_single_contact=전체 ID 접촉점 힘과 YAML별 값 확인 안내가 있다.
+  현재 train.yaml과 입력별 여섯 YAML 모두 사용자가 all_single_contact로 변경한 상태를 확인했다.
+  131절의 입력별 tip 기록은 당시 상태이며 현재 설정을 뜻하지 않는다.
+- 완료: 문서와 설정을 읽어 확인했다. 에이전트의 YAML 변경이나 학습 실행은 없다.

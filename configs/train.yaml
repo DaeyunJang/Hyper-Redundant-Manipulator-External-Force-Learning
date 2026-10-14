@@ -36,7 +36,7 @@ force_columns: [fts_kalman.aligned_fx, fts_kalman.aligned_fy, fts_kalman.aligned
 id_column: contact_segment_id
 source_force_unit: mN  # mN 또는 N. 내부 학습 단위는 N.
 force_frame: hrm_base
-force_scope: tip      # tip: ID18 힘 전용 / all_single_contact: 전체 ID 힘
+force_scope: all_single_contact      # tip: ID18 힘 전용 / all_single_contact: 전체 ID 힘
 active_ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
 regions:
   lower: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]

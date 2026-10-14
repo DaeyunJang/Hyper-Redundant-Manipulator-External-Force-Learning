@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # 전체 조합 test 예측이 성공하면 GT + 모델별 열 Excel을 이어서 생성합니다.
+# 실행 중 파일이 수정되어도 명령을 섞어 읽지 않도록 전체를 한 번에 읽습니다.
+{
 set -euo pipefail
 if [[ $# -eq 0 || ${1:-} == --help ]]; then
-  echo "사용법: bash scripts/predict_and_organize.sh TRAIN_DIR [새_OUTPUT_DIR] [--id-tolerance N]"
+  echo "사용법: bash scripts/predict_and_organize.sh TRAIN_DIR [새_OUTPUT_DIR] [--id-tolerance N] [--check-overlap]"
   echo "예: bash scripts/predict_and_organize.sh results/train/20261006_095933 --id-tolerance 2"
   if [[ ${1:-} == --help ]]; then exit 0; else exit 2; fi
 fi
@@ -15,14 +17,26 @@ if [[ $# -gt 0 && $1 != --* ]]; then
   shift
 fi
 HRM_ORGANIZE_ARGS=()
-if [[ $# -gt 0 ]]; then
-  if [[ $# -ne 2 || $1 != --id-tolerance || ! ${2:-} =~ ^([0-9]|1[0-7])$ ]]; then
-    echo "인자 오류: TRAIN_DIR [새_OUTPUT_DIR] [--id-tolerance N], N은 0–17 정수입니다." >&2
-    exit 2
-  fi
-  HRM_ORGANIZE_ARGS=(--id-tolerance "$2")
-fi
+HRM_PREDICT_ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --check-overlap)
+      HRM_PREDICT_ARGS=(--check-overlap)
+      shift ;;
+    --id-tolerance)
+      if [[ $# -lt 2 || ! ${2:-} =~ ^([0-9]|1[0-7])$ ]]; then
+        echo "--id-tolerance에는 0–17 정수가 필요합니다." >&2
+        exit 2
+      fi
+      HRM_ORGANIZE_ARGS=(--id-tolerance "$2")
+      shift 2 ;;
+    *)
+      echo "알 수 없는 인자: $1" >&2
+      exit 2 ;;
+  esac
+done
 bash "$HRM_PROJECT_DIR/scripts/hrm_python.sh" "$HRM_PROJECT_DIR/predict.py" \
-  --train-dir "$HRM_TRAIN_DIR" --output "$HRM_PREDICT_OUTPUT"
-bash "$HRM_PROJECT_DIR/scripts/hrm_python.sh" "$HRM_PROJECT_DIR/organize_results.py" \
+  --train-dir "$HRM_TRAIN_DIR" --output "$HRM_PREDICT_OUTPUT" "${HRM_PREDICT_ARGS[@]}"
+exec bash "$HRM_PROJECT_DIR/scripts/hrm_python.sh" "$HRM_PROJECT_DIR/organize_results.py" \
   "$HRM_PREDICT_OUTPUT/predictions.xlsx" "${HRM_ORGANIZE_ARGS[@]}"
+}

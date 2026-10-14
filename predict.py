@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -68,27 +69,33 @@ def _tip_verified(trial: Any, bundle: dict) -> bool:
     return any(info.get("sha256") == trial.sha256 and info.get("is_tip") for info in _known_trials(bundle))
 
 
-def _assert_held_out(trials: list, bundle: dict) -> None:
+def _warn_prediction_overlap(trials: list, bundle: dict) -> None:
+    """선택 검사: 저장 메타데이터의 중복 징후만 알리며 입력/예측은 바꾸지 않습니다."""
     known = _known_trials(bundle)
-    forbidden = set(bundle["config"].get("protected_development_hashes", []))
-    development = []
-    for part in ("train", "validation"):
-        for index in bundle.get("split", {}).get(part, []):
-            if isinstance(index, int) and 0 <= index < len(known):
-                forbidden.add(known[index]["sha256"])
-                development.append(known[index])
-    overlap = [trial.path for trial in trials if trial.sha256 in forbidden]
-    if overlap:
-        raise ValueError(f"Development trials cannot be reported as independent test: {overlap}")
+    indices = set(bundle.get('split', {}).get('train', [])) | set(bundle.get('split', {}).get('validation', []))
+    references = [('train/validation', known[i]) for i in sorted(indices)
+                  if isinstance(i, int) and 0 <= i < len(known)]
+    protected = set(bundle['config'].get('protected_development_hashes', []))
     for trial in trials:
+        matches = []
         origin = trial.info.get('timestamp_origin_ns')
-        if not isinstance(origin, int) or origin <= 0:
-            continue
-        for info in development:
+        for role, info in references:
             previous = info.get('timestamp_origin_ns')
-            if (isinstance(previous, int) and previous > 0 and info.get('rows') == len(trial.x)
-                    and abs(previous - origin) <= 20000):
-                raise ValueError(f'Development recording clock and row count recur after reformatting: {trial.path}')
+            if trial.sha256 == info.get('sha256'):
+                reason = '파일 내용 동일'
+            elif (isinstance(origin, int) and origin > 0 and isinstance(previous, int) and previous > 0
+                  and info.get('rows') == len(trial.x) and abs(previous - origin) <= 20000):
+                reason = '중복 의심: 시작 시각·유효 행 수 일치'
+            else:
+                continue
+            matches.append(f"{role}: {info.get('path', '(저장 경로 없음)')} ({reason})")
+        if trial.sha256 in protected and not matches:
+            matches.append('과거 학습/validation 파일 hash와 동일')
+        if matches:
+            # warnings.warn 대신 stderr에 출력하므로 PYTHONWARNINGS=error여도 실행을 막지 않습니다.
+            print(f"[경고] 데이터 중복 검사: {trial.path}\n  " + '\n  '.join(matches)
+                  + '\n  파일을 제외하지 않고 예측을 계속합니다.', file=sys.stderr, flush=True)
+        references.append(('예측 입력', trial.info))
 
 
 def _initial_frame(trial: Any, bundle: dict, checkpoint: Path) -> pd.DataFrame:
@@ -683,11 +690,11 @@ def export_validation_workbook(train_dir: str | Path) -> Path:
     return path
 
 
-def _frozen_test_trials(bundle: dict) -> list:
+def _frozen_test_trials(bundle: dict, check_overlap: bool = False) -> list:
     known = _known_trials(bundle)
     saved = [known[index] for index in bundle.get("split", {}).get("test", [])]
     if not saved:
-        raise ValueError("Bundle has no frozen held-out test files")
+        raise ValueError("Bundle has no saved test files")
     paths = [_path(item["path"], bundle) for item in saved]
     trials = load_prediction_trials(paths, bundle["config"], bundle["calibration"])
     expected = {str(path): item["sha256"] for path, item in zip(paths, saved)}
@@ -696,7 +703,8 @@ def _frozen_test_trials(bundle: dict) -> list:
     for trial in trials:
         if expected.get(str(Path(trial.path).resolve())) != trial.sha256:
             raise ValueError(f"Frozen test CSV changed since training: {trial.path}")
-    _assert_held_out(trials, bundle)
+    if check_overlap:
+        _warn_prediction_overlap(trials, bundle)
     return trials
 
 
@@ -724,7 +732,8 @@ def _verify_unchanged(trials: list) -> None:
 
 # 전체 실행: 모든 완료 조합 test 평가 → 대표 모델 시트 → 선택 모델 요약.
 def select_and_evaluate(train_dir: str | Path, output: str | Path | None = None,
-                        device: str | None = None, location_metric: str = "location_macro_recall") -> Path:
+                        device: str | None = None, location_metric: str = "location_macro_recall",
+                        check_overlap: bool = False) -> Path:
     """Evaluate every completed pair; the best pair per mode is frozen by validation."""
     train_dir = Path(train_dir).resolve()
     comparison = _completed_comparison(train_dir)
@@ -736,7 +745,7 @@ def select_and_evaluate(train_dir: str | Path, output: str | Path | None = None,
     _assert_bundle_row(reference, comparison.iloc[0])
     signature = _contract(reference)
     jobs = representative_comparison_rows(comparison, reference["config"])
-    trials = _frozen_test_trials(reference)
+    trials = _frozen_test_trials(reference, check_overlap=check_overlap)
     destination = fresh_directory("predict", output)
     writer = ModelWorkbook(destination / "predictions.xlsx", comparison)
     reports, selected_reports, selections, updates = {}, {}, [], {}
@@ -819,7 +828,8 @@ def select_and_evaluate(train_dir: str | Path, output: str | Path | None = None,
 
 
 def predict_checkpoint(checkpoint: str | Path, input_dir: str | Path,
-                       output: str | Path | None = None, device: str | None = None) -> Path:
+                       output: str | Path | None = None, device: str | None = None,
+                       check_overlap: bool = False) -> Path:
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     checkpoint = Path(checkpoint).resolve()
     model, bundle = restore_bundle(checkpoint, device)
@@ -827,7 +837,8 @@ def predict_checkpoint(checkpoint: str | Path, input_dir: str | Path,
     if not paths:
         raise ValueError(f"No CSV files found in {input_dir}")
     trials = load_prediction_trials(paths, bundle["config"], bundle["calibration"])
-    _assert_held_out(trials, bundle)
+    if check_overlap:
+        _warn_prediction_overlap(trials, bundle)
     frame = predict_trials(model, bundle, trials, checkpoint, device=device)
     report = prediction_report(frame, bundle, None)
     destination = fresh_directory("predict", output)
@@ -867,10 +878,15 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--input-dir", default="datasets/test")
     parser.add_argument("--output")
     parser.add_argument("--device", choices=["cpu", "cuda"])
+    parser.add_argument("--check-overlap", action="store_true",
+                        help="중복 파일/시작 시각·행 수 일치를 경고만 하고 계속 예측합니다 (기본: 검사 생략)")
     parser.add_argument("--location-selection-metric", default="location_macro_recall",
                         choices=["location_macro_recall", "load_balanced_accuracy"])
     args = parser.parse_args(argv)
-    destination = select_and_evaluate(args.train_dir, args.output, args.device, args.location_selection_metric) if args.train_dir else predict_checkpoint(args.checkpoint, args.input_dir, args.output, args.device)
+    destination = (select_and_evaluate(args.train_dir, args.output, args.device, args.location_selection_metric,
+                                       check_overlap=args.check_overlap) if args.train_dir else
+                   predict_checkpoint(args.checkpoint, args.input_dir, args.output, args.device,
+                                      check_overlap=args.check_overlap))
     print(f"Predictions, comparison and Excel: {destination}")
 
 

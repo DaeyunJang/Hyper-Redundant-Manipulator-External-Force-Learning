@@ -16,6 +16,7 @@ CSV의 지정한 입력으로 연속 Fx/Fy/Fz와 접촉 ID를 추정한다. 힘�
 | [data_utils.py](data_utils.py) | CSV 열 선택/결측 제거, 분할, 시간창의 범위, 공통 평가식 |
 | [analyze_no_load.py](analyze_no_load.py) | 수동 무부하 범위·부하 라벨, 선택한 CSV의 범위 내/외 통계 |
 | [organize_results.py](organize_results.py) | 저장된 Excel을 읽어 GT + 모델별 열로 재정리; 학습·추론 없음 |
+| [analysis.py](analysis.py) | 저장된 predict 지표로 전체 조합의 힘/ID 비교 Excel과 그림 생성 |
 
 학습 흐름은 `train.py`의 `train_experiment()`, 학습 루프는 `train_branch()`부터 보면 된다.
 `model_zoo.py`를 수정하면 실제 사용하는 모델이 바뀐다.
@@ -37,7 +38,9 @@ CSV의 지정한 입력으로 연속 Fx/Fy/Fz와 접촉 ID를 추정한다. 힘�
 - `window_samples`: 현재 행을 포함한 이력 길이. 현재30은 최적화된 값이 아니다.
 - `validation_fraction`: 각 train CSV의 뒷부분을 validation으로 남길 비율. 기본0.2.
 
-기본 힘 모델은 **ID18 전용**이며 무부하에서도 연속 실측 힘을 학습한다. 위치는 ID1–18을 사용한다.
+`force_scope: tip`은 **ID18 전용**, `force_scope: all_single_contact`는 **ID1–18의 각 접촉점 힘**을 학습한다.
+현재 `train.yaml`은 `all_single_contact`이며, 입력 조합별 `train_*.yaml`은 각 파일의 값을 확인한다.
+두 설정 모두 무부하에서도 연속 실측 힘을 학습한다. 위치는 ID1–18을 사용한다.
 `masked`는 무부하의 위치 손실을 제외하고, `class0`는 무부하를 ID0으로 학습한다.
 `ft_sensor_calibration`의 세 축 범위 안(양끝 포함)이면 무부하, 하나라도 밖이면 유부하다.
 CSV의 `force_columns` 값과 직접 비교하며 자동 offset 차감·범위 확대·중간 불확실 구간은 없다.
@@ -52,7 +55,28 @@ CSV의 `force_columns` 값과 직접 비교하며 자동 offset 차감·범위 �
 창은 파일/분할 경계를 넘지 않으며 scaler는 train만으로 계산한다.
 같은 녹화에서 잘라낸 test 성능과 별도 실험의 성능은 구별한다.
 
+일반 입력 비교는 `train_cable_loadcell.yaml`, `train_cable_angle.yaml`, `train_loadcell_angle.yaml`,
+`train_cable_loadcell_angle.yaml`을 사용한다. 각 설정의 입력·정답에 빈칸이 있는 행만 제외하며,
+끝단 자세 열의 빈칸은 확인하지 않는다.
+
+끝단 자세 입력은 다음 두 설정을 사용한다. 케이블4·로드셀4에 위치XYZ3개와 회전quaternion4개를
+더해 각각15개 입력이다. 위치는m, quaternion 순서는qx/qy/qz/qw이며 원값/부호를 보존한다.
+
+- `configs/train_cable_loadcell_estimated_pose.yaml`: `estimated_tip.x_m/y_m/z_m` + `estimated_tip_orientation.qx/qy/qz/qw`.
+- `configs/train_cable_loadcell_fk_tip_tf.yaml`: `fk_tip_tf.x_m/y_m/z_m/qx/qy/qz/qw`. 위치·회전을 같은TF 자세에서 읽는다.
+
+현재 YAML에는 `comparison_columns`가 없다. 각 설정에서 선택한 입력·정답의 숫자 행만 사용하며,
+다른 입력 방식의 빈칸은 검사하지 않는다. 배치1024·이력30행·파일별80/20분할을 유지한다.
+Test에서도 선택한 자세 입력이 필요하다. 외력은GT 비교용이며 신경망 입력에는 넣지 않는다.
+입력별 결측이 다르면 test 평가 행도 달라지므로 결과 비교 시 사용 파일/행을 확인한다.
+과거 bundle에 저장된 공통 행 조건은 기존 예측 재현을 위해 유지한다. 최신 기록은 통합 문서110절이다.
+
 ## 실행
+
+학습→test 예측→±2 Excel 정리는 [commands.txt](commands.txt)의
+블록을 프로젝트 루트 터미널에 붙여넣어 실행한다. 같은 날짜·시간 뒤에 각 입력 이름을 붙여 저장하며,
+정리된 Excel은 각 predict 폴더 안에 생성된다. 일반 입력4종 블록과
+각도/Estimated/FK TF 3종 블록 중 원하는 괄호 블록 하나만 선택해 실행한다.
 
 ```bash
 # 최초 환경 설치: uv가 PATH에 있어야 한다.
@@ -89,13 +113,59 @@ bash scripts/hrm_python.sh -m unittest discover -s tests -v
 가상환경 활성화 후 일반 `python train.py ...`도 가능하다.
 현재 PC의 GPU 라이브러리 우회는 실행 프로세스에만 적용한다.
 
+예측의 중복 검사는 기본적으로 생략한다. `predict.py` 또는 `predict_and_organize.sh` 명령 끝에
+`--check-overlap`을 붙이면 train/validation 및 예측 입력 사이의 중복을 **경고만 하고 계속 진행**한다.
+파일 내용 hash가 같거나 시작 시각·유효 행 수가 같은 기록을 확인하며, 후자는 중복 의심으로 표시한다.
+모든 부분 구간의 중복을 찾는 검사는 아니며, 파일/행 자동 제외나 예측값 변경은 하지 않는다.
+
+```bash
+bash scripts/predict_and_organize.sh results/train/학습날짜_시간 --id-tolerance 2 --check-overlap
+```
+
 ## 결과
+
+학습→예측→organize 후, 저장된 **predict 실행 폴더**를 `analysis.py`에 주면 종합 분석을 만든다.
+입력 조합을 여러 개 비교하려면 같은 날짜·시간 접두사를 지정한다. `*` 패턴은 따옴표로 감싸도 된다.
+
+```bash
+# 하나의 실행 분석: 정확 ID 및 ±1/±2/±3을 한 번에 계산
+bash scripts/hrm_python.sh analysis.py results/predict/날짜_시간
+
+# 여러 입력 조합의 결과를 Excel 하나와 비교 그림으로 모으기
+bash scripts/hrm_python.sh analysis.py "results/predict/날짜_시간_*"
+
+# 선택사항: 특정 파일만 힘 평가. ID 평가는 전체 test 그대로
+bash scripts/hrm_python.sh analysis.py "results/predict/날짜_시간_*" --force-file summary_18_test_2.csv
+```
+
+새 `results/analysis/날짜_시간_comparison/`에 분석 Excel, `force_and_id_summary.png`,
+입력별 `id_confusion_*.png`를 저장한다. 다른 허용거리는 `--id-tolerances 2 3 4`,
+다른 저장 위치는 `--output 새폴더`로 정한다. 학습·추론을 다시 실행하지 않는다.
+기존처럼 GT와 모델별 예측을 열로 모은 행별 Excel은 organize 결과를 사용한다.
+
+- `force_selected`: validation으로 선택한 힘 모델의 축별·XYZ RMSE/MAE(mN).
+- `id_selected`: 위치 validation으로 선택한 모델의 GT 유부하 정확 ID·±n 성공률과 Class0 검출 지표.
+- `force` / `location` / `detection`: 모든 저장 모델조합. 전체/body/tip을 구분하고 힘은 유부하/무부하도 나눈다.
+- `force_by_id` / `force_by_file` / `id_by_id`: 선택 모델 및 organized와 같은 고정 파트너 대표모델의 상세 결과.
+- `guide` / `runs` / `models` / `test_files` / `sources`: 지표 정의, 학습 범위, 입력 열, 모델 선택과 평가 자료의 근거.
+
+그림 A는 XYZ 힘 RMSE, B는 축별 RMSE, C는 GT 유부하 body의 ID 허용거리별 성공률,
+D는 Class0의 유부하 검출률·무부하 정답률이다. A/B와 C/D의 선택 모델은 다를 수 있다.
+Class0가 유부하에서 ID0을 예측하면 모든 ID 허용거리에서 실패로 센다. Masked의 자체 검출률은 만들지 않는다.
+현재 YAML이 아닌 **저장 당시의 force_scope와 부하 라벨**을 사용하므로 예전 tip 결과도 분석할 수 있다.
+평가행 수 N이 입력별로 다를 수 있으며, 기본 힘 지표는 저장된 모든 test 파일을 합산한다.
+독립 실험의 성능을 따로 보고하려면 해당 파일을 명시한다. 파일 중복을 자동으로 제외하지 않는다.
+
+이 코드는 `predict.py --train-dir ...` 전조합 결과의 `metrics.json`, `comparison.csv`,
+`summary.json`, `input_manifest.json`, `workbook_manifest.json`을 읽는다. organize 실행 전에도 동작한다.
+단일 checkpoint 예측, 힘 크기별 ID 진단, 공통행 비교, 시계열 그림은 이 코드의 분석 범위에 포함하지 않는다.
 
 | 위치 | 주요 파일 |
 |---|---|
 | `results/train/날짜_시간/` | `comparison.csv`, `summary.json`, `validation.xlsx`, 설정·분할·교정·환경 기록 |
 | 위 폴더의 `models/방식__force_모델__location_모델/` | `hrm_bundle.pt`, 학습 이력, validation 예측 배열 |
 | `results/predict/날짜_시간/` | `comparison.csv`, `predictions.csv`, `summary.json`, `predictions.xlsx`, 상세 지표·출처 |
+| `results/analysis/날짜_시간_comparison/` | `force_and_id_all_combinations.xlsx`, 힘/ID 비교 그림, 입력별 ID 혼동행렬 그림 |
 
 `hrm_bundle.pt`는 두 네트워크 가중치와 입력 순서·scaler·무부하 기준 등을 함께 저장한다.
 최선 모델은 validation으로 선택하며 test 점수로 바꾸지 않는다. Predict 비교표의 `test_` 열은
@@ -112,7 +182,7 @@ Excel은 실행마다 하나이며 힘/ID/방식/모델별 시트로 나뉜다. 
 입력에 포함된 방식에 따라 다음 비교 파일을 저장한다. `predict.py`만 실행하면 원래의
 `predictions.xlsx`까지 생성하며, 정리까지 자동 실행하려면 위 shell 명령을 사용한다.
 
-- `force-estimation_loss-mask_id-tol-N_results.xlsx`: fx/fy/fz 시트, 첫 열 GT(mN), 다음 열 모델별 예측.
+- `force-estimation_loss-mask_id-tol-N_results.xlsx`: 첫 `force_all` 시트에 GT Fx/Fy/Fz와 모든 모델의 XYZ 예측을 열로 모은다. 기존 fx/fy/fz 시트도 유지하며 각 첫 열은 GT(mN), 다음 열은 모델별 예측이다.
 - `force-estimation_class0_id-tol-N_results.xlsx`: 같은 구성의 class0 힘 결과.
 - `id-estimation_all-models_id-tol-N_results.xlsx`: 양방식 ID, 조건부 ID 오차/±n 성공, class0 부하 판정,
   검출 포함 ±n 성공과 구간 결과. GT 무부하 행의 ID 오차/±n 평가는 빈칸이다.

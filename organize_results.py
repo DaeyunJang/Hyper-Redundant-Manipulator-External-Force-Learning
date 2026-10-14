@@ -134,7 +134,8 @@ def row_table(frame):
 
 
 def force_tables(frames, reference):
-    tables = {a: pd.DataFrame({f"gt_{a}_mN": reference[f"gt_{a}_mN"]}) for a in AXES}
+    tables = {"force_all": reference[[f"gt_{a}_mN" for a in AXES]].copy()}
+    tables.update({a: pd.DataFrame({f"gt_{a}_mN": reference[f"gt_{a}_mN"]}) for a in AXES})
     summary = []
     for model, frame in frames.items():
         pred = frame[[f"pred_{a}_mN" for a in AXES]].to_numpy(float)
@@ -144,6 +145,7 @@ def force_tables(frames, reference):
         error = pred - gt
         row = {"model": model, "support": len(frame)}
         for i, axis in enumerate(AXES):
+            tables["force_all"][f"pred_{axis}_{model}_mN"] = pred[:, i]
             tables[axis][model] = pred[:, i]
             row[f"rmse_{axis}_mN"] = np.sqrt(np.mean(error[:, i] ** 2))
             row[f"mae_{axis}_mN"] = np.mean(abs(error[:, i]))
@@ -331,7 +333,7 @@ def organize_workbook(source, output=None, regions=DEFAULT_REGIONS, id_tolerance
     guide = pd.DataFrame([
         ("입력", str(source)), ("입력 SHA256", source_hash),
         ("처리", "저장된 Excel만 재정리했습니다. 학습·추론·모델 선택·현재 YAML 재라벨은 하지 않습니다."),
-        ("힘", "fx/fy/fz 첫 열은 GT, 다음 열들은 모델 예측입니다. 단위mN, 회귀값/부호/부하별 힘을 그대로 보존합니다."),
+        ("힘", "첫 force_all 시트에 GT Fx/Fy/Fz와 모든 모델의 XYZ 예측 열을 모읍니다. fx/fy/fz 시트도 유지하며 첫 열은 GT, 다음 열들은 모델 예측입니다. 단위mN, 회귀값/부호/부하별 힘을 그대로 보존합니다."),
         ("ID", "gt_id는 유부하ID/무부하0, loaded_gt는 실측 기준 유부하1/무부하0입니다. class0_id의0은 모델이 무부하로 판단한 것입니다."),
         ("조건부 ID", "class0_id_conditional은 p0를 제외한 위치 후보입니다. Masked도 접촉ID 후보만 출력하며 자체 무부하 검출은 없습니다."),
         ("ID 허용 거리 n", id_tolerance),
